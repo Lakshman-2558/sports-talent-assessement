@@ -1,0 +1,241 @@
+/* Official Government Design System Variables */
+:root {
+  /* Official Government Colors */
+  --gov-navy: #1a365d;
+  --gov-blue: #2b6cb0;
+  --gov-gold: #d69e2e;
+  --gov-red: #c53030;
+  --gov-white: #ffffff;
+  --gov-cream: #faf5f0;
+  --gov-gray: #4a5568;
+  --gov-light-gray: #e2e8f0;
+  --gov-dark: #1a202c;
+  --gov-green: #38a169;
+  --gov-orange: #dd6b20;
+  
+  /* Official Typography */
+  --font-official: 'Times New Roman', 'Georgia', serif;
+  --font-modern: 'Inter', 'Segoe UI', sans-serif;
+  
+  /* Layout */
+  --border-official: 3px;
+  --shadow-official: 0 4px 20px rgba(26, 54, 93, 0.15);
+  --border-radius: 8px;
+}
+
+.App {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--gov-cream) 0%, var(--gov-light-gray) 100%);
+  font-family: var(--font-modern);
+}
+
+.main-content {
+  padding-top: 80px; /* Account for fixed header */
+  min-height: calc(100vh - 80px);
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--gov-light-gray);
+  border-top: 4px solid var(--gov-gold);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Alert Messages */
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.alert-success {
+  background-color: rgba(56, 161, 105, 0.1);
+  color: var(--gov-green);
+  border: 2px solid var(--gov-green);
+  border-radius: var(--border-radius);
+}
+
+.alert-error {
+  background-color: rgba(197, 48, 48, 0.1);
+  color: var(--gov-red);
+  border: 2px solid var(--gov-red);
+  border-radius: var(--border-radius);
+}
+
+.alert-warning {
+  background-color: rgba(214, 158, 46, 0.1);
+  color: var(--gov-gold);
+  border: 2px solid var(--gov-gold);
+  border-radius: var(--border-radius);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--gov-white);
+  border-radius: var(--border-radius);
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  border: var(--border-official) solid var(--gov-gold);
+  border-top: 6px solid var(--gov-navy);
+  box-shadow: var(--shadow-official);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+}
+
+/* Video Player Styles */
+.video-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.video-player {
+  width: 100%;
+  height: auto;
+}
+
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.play-pause-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gov-gold), var(--gov-blue));
+  transition: width 0.1s ease;
+}
+
+/* Badge Styles */
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-success {
+  background: #28a745;
+  color: white;
+}
+
+.badge-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+.badge-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.badge-info {
+  background: #17a2b8;
+  color: white;
+}
+
+/* Progress Bar */
+.progress-container {
+  width: 100%;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gov-navy), var(--gov-blue));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main-content {
+    padding-top: 70px;
+  }
+  
+  .modal-content {
+    margin: 20px;
+    width: calc(100% - 40px);
+  }
+  
+  .video-controls {
+    padding: 15px;
+  }
+}

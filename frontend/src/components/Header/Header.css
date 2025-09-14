@@ -1,0 +1,526 @@
+/* Official Government SAI Sports Talent Platform */
+:root {
+  /* Official Government Colors */
+  --gov-navy: #1a365d;
+  --gov-blue: #2b6cb0;
+  --gov-gold: #d69e2e;
+  --gov-red: #c53030;
+  --gov-white: #ffffff;
+  --gov-cream: #faf5f0;
+  --gov-gray: #4a5568;
+  --gov-light-gray: #e2e8f0;
+  --gov-dark: #1a202c;
+  --gov-green: #38a169;
+  --gov-orange: #dd6b20;
+  
+  /* Official Typography */
+  --font-official: 'Times New Roman', 'Georgia', serif;
+  --font-modern: 'Inter', 'Segoe UI', sans-serif;
+  
+  /* Layout */
+  --header-height: 85px;
+  --border-official: 3px;
+  --shadow-official: 0 4px 20px rgba(26, 54, 93, 0.15);
+  --shadow-deep: 0 8px 30px rgba(26, 54, 93, 0.25);
+  --border-radius: 8px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, var(--gov-navy) 0%, var(--gov-blue) 100%);
+  border-bottom: var(--border-official) solid var(--gov-gold);
+  border-top: 2px solid var(--gov-cream);
+  z-index: 1000;
+  box-shadow: var(--shadow-official);
+  font-family: var(--font-modern);
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, 
+    var(--gov-gold) 0%, 
+    var(--gov-cream) 25%, 
+    var(--gov-red) 50%, 
+    var(--gov-cream) 75%, 
+    var(--gov-gold) 100%);
+  opacity: 0.8;
+}
+
+.header::after {
+  content: 'GOVERNMENT OF INDIA • SPORTS AUTHORITY OF INDIA';
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--gov-gray);
+  background: var(--gov-cream);
+  padding: 4px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--gov-light-gray);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  min-height: var(--header-height);
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Official Government Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  text-decoration: none;
+  color: var(--gov-white);
+  font-family: var(--font-official);
+  transition: all 0.3s ease;
+}
+
+.logo:hover {
+  transform: translateY(-2px);
+}
+
+.logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background: var(--gov-gold);
+  border-radius: 50%;
+  color: var(--gov-navy);
+  font-size: 1.8rem;
+  font-weight: 900;
+  box-shadow: var(--shadow-official);
+  border: 3px solid var(--gov-cream);
+  position: relative;
+}
+
+.logo-icon::before {
+  content: '🏆';
+  position: absolute;
+  font-size: 1.2rem;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.logo-text .main-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.logo-subtext {
+  font-size: 0.7rem;
+  font-weight: 500;
+  opacity: 0.9;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gov-cream);
+  font-family: var(--font-modern);
+}
+
+/* Navigation */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-link:before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: var(--sai-gold);
+  transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link:hover:before {
+  width: 100%;
+}
+
+.nav-link.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nav-link.active:before {
+  width: 100%;
+}
+
+.nav-link i {
+  font-size: 1.1rem;
+}
+
+/* Official User section */
+.auth-section {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px 20px;
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: white;
+  position: relative;
+}
+
+.user-name {
+  font-weight: 700;
+  color: white;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.user-type {
+  font-size: 0.7rem;
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-weight: 600;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.user-type.athlete {
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.9) 0%, rgba(33, 150, 243, 0.9) 100%);
+  color: white;
+  border-color: rgba(25, 118, 210, 0.5);
+}
+
+.user-type.coach {
+  background: linear-gradient(135deg, rgba(123, 31, 162, 0.9) 0%, rgba(156, 39, 176, 0.9) 100%);
+  color: white;
+  border-color: rgba(123, 31, 162, 0.5);
+}
+
+.user-type.sai_official {
+  background: linear-gradient(135deg, rgba(245, 124, 0, 0.9) 0%, rgba(255, 152, 0, 0.9) 100%);
+  color: white;
+  border-color: rgba(245, 124, 0, 0.5);
+}
+
+.user-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.auth-buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* Official Button styles */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--sai-accent) 0%, #e63946 50%, #c53030 100%);
+  color: white;
+  box-shadow: 
+    0 4px 15px rgba(255, 107, 53, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 
+    0 8px 25px rgba(255, 107, 53, 0.5),
+    0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(229, 228, 226, 0.95) 100%);
+  color: var(--sai-primary);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, white 0%, #f8f9fa 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.4);
+}
+
+.btn-outline {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.logout-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.logout-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.2) 0%, rgba(229, 62, 62, 0.2) 100%);
+  transform: translateY(-3px);
+  box-shadow: 
+    0 6px 20px rgba(255, 107, 53, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 107, 53, 0.5);
+}
+
+.logout-btn:hover::before {
+  left: 100%;
+}
+
+.logout-btn:active {
+  transform: translateY(-1px);
+}
+
+.logout-btn i {
+  font-size: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.logout-btn:hover i {
+  transform: rotate(15deg) scale(1.1);
+}
+
+/* Mobile menu toggle */
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: white;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Mobile Styles */
+@media (max-width: 900px) {
+  .header-content {
+    padding: 0.8rem 1.5rem;
+  }
+  
+  .nav {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    background: var(--sai-primary);
+    flex-direction: column;
+    padding: 1rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    transform: translateY(-100%);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.4s ease;
+    z-index: 999;
+    gap: 0.5rem;
+  }
+
+  .nav-open {
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .nav-link {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 12px 16px;
+    border-radius: 6px;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  .auth-section {
+    display: none;
+  }
+
+  .nav-open ~ .auth-section-mobile {
+    display: flex;
+    position: fixed;
+    top: calc(var(--header-height) + 180px);
+    left: 0;
+    right: 0;
+    background: var(--sai-primary);
+    padding: 1.5rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    z-index: 998;
+  }
+
+  .user-menu {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .user-info {
+    align-items: center;
+    margin-bottom: 0.5rem;
+    text-align: center;
+  }
+
+  .user-actions {
+    flex-direction: column;
+  }
+
+  .auth-buttons {
+    flex-direction: column;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+  .header-content {
+    padding: 0.8rem 1rem;
+  }
+  
+  .logo {
+    font-size: 1.4rem;
+  }
+  
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+}

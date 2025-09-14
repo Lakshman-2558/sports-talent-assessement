@@ -1,0 +1,347 @@
+/* Official Government Design System Variables */
+:root {
+  /* Official Government Colors */
+  --gov-navy: #1a365d;
+  --gov-blue: #2b6cb0;
+  --gov-gold: #d69e2e;
+  --gov-red: #c53030;
+  --gov-white: #ffffff;
+  --gov-cream: #faf5f0;
+  --gov-gray: #4a5568;
+  --gov-light-gray: #e2e8f0;
+  --gov-dark: #1a202c;
+  --gov-green: #38a169;
+  --gov-orange: #dd6b20;
+  
+  /* Official Typography */
+  --font-official: 'Times New Roman', 'Georgia', serif;
+  --font-modern: 'Inter', 'Segoe UI', sans-serif;
+  
+  /* Layout */
+  --border-official: 3px;
+  --shadow-official: 0 4px 20px rgba(26, 54, 93, 0.15);
+  --border-radius: 8px;
+}
+
+.auth-page {
+  min-height: 100vh;
+  padding: 2rem 0;
+  background: linear-gradient(135deg, var(--gov-navy) 0%, var(--gov-blue) 100%);
+  display: flex;
+  align-items: center;
+  font-family: var(--font-modern);
+  position: relative;
+}
+
+.auth-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.auth-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.auth-card {
+  background: var(--gov-white);
+  border-radius: var(--border-radius);
+  padding: 3rem;
+  box-shadow: var(--shadow-official);
+  border: var(--border-official) solid var(--gov-gold);
+  border-top: 6px solid var(--gov-navy);
+  position: relative;
+}
+
+.auth-card::before {
+  content: 'GOVERNMENT OF INDIA • OFFICIAL PORTAL';
+  position: absolute;
+  top: -12px;
+  right: 20px;
+  background: var(--gov-navy);
+  color: var(--gov-white);
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  font-family: var(--font-modern);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.auth-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--gov-navy);
+  margin-bottom: 0.5rem;
+  font-family: var(--font-official);
+  border-bottom: 3px solid var(--gov-gold);
+  padding-bottom: 0.5rem;
+  display: inline-block;
+}
+
+.auth-header p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.auth-form {
+  margin-bottom: 2rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--gov-gold);
+  box-shadow: 0 0 0 3px rgba(214, 158, 46, 0.2);
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+.btn-full {
+  width: 100%;
+  padding: 16px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.auth-footer {
+  text-align: center;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.auth-footer p {
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.auth-link {
+  color: var(--gov-blue);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.auth-link:hover {
+  color: var(--gov-navy);
+}
+
+.auth-info {
+  color: var(--gov-white);
+  padding: 2rem;
+  position: relative;
+}
+
+.auth-info::before {
+  content: '🏆';
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 3rem;
+  opacity: 0.3;
+}
+
+.auth-info h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  line-height: 1.2;
+}
+
+.info-features {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.info-feature {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.info-feature i {
+  font-size: 1.5rem;
+  width: 40px;
+  text-align: center;
+}
+
+.info-feature span {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.alert-error {
+  background-color: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+}
+
+.alert-success {
+  background-color: #efe;
+  color: #363;
+  border: 1px solid #cfc;
+}
+
+.alert-warning {
+  background-color: #fff8e1;
+  color: #f57c00;
+  border: 1px solid #ffcc02;
+}
+
+/* Loading States */
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.fa-spinner {
+  margin-right: 0.5rem;
+}
+
+/* Responsive Design */
+@media (max-width: 968px) {
+  .auth-container {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .auth-info {
+    order: -1;
+    text-align: center;
+    padding: 1rem;
+  }
+
+  .auth-info h2 {
+    font-size: 2rem;
+  }
+
+  .info-features {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .auth-page {
+    padding: 1rem 0;
+  }
+
+  .auth-card {
+    padding: 2rem;
+    margin: 0 1rem;
+  }
+
+  .auth-header h1 {
+    font-size: 2rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .info-features {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-info h2 {
+    font-size: 1.8rem;
+  }
+}
+
+/* User Type Specific Styling */
+.form-input[name="userType"] {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+  appearance: none;
+}
+
+/* Password Strength Indicator */
+.password-strength {
+  margin-top: 0.5rem;
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.password-strength-fill {
+  height: 100%;
+  transition: all 0.3s ease;
+  border-radius: 2px;
+}
+
+.strength-weak {
+  width: 33%;
+  background: #dc3545;
+}
+
+.strength-medium {
+  width: 66%;
+  background: #ffc107;
+}
+
+.strength-strong {
+  width: 100%;
+  background: #28a745;
+}

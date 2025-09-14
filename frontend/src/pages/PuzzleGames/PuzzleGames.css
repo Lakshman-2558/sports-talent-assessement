@@ -1,0 +1,520 @@
+.puzzle-games-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem 0;
+}
+
+.games-header {
+  text-align: center;
+  color: white;
+  margin-bottom: 3rem;
+}
+
+.games-header h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.games-header p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Games Selection */
+.games-selection {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-bottom: 4rem;
+}
+
+.game-card {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.game-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+.game-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.game-info h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.game-info p {
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.game-meta {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.game-category {
+  padding: 4px 12px;
+  background: #e9ecef;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.game-difficulty {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.game-difficulty.easy {
+  background: #d4edda;
+  color: #155724;
+}
+
+.game-difficulty.medium {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.game-difficulty.hard {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Benefits Section */
+.benefits-section {
+  background: white;
+  border-radius: 16px;
+  padding: 3rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+}
+
+.benefits-section h2 {
+  text-align: center;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 3rem;
+}
+
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.benefit-item {
+  text-align: center;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.benefit-item i {
+  font-size: 2.5rem;
+  color: #667eea;
+  margin-bottom: 1rem;
+}
+
+.benefit-item h4 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.benefit-item p {
+  color: #666;
+  line-height: 1.6;
+}
+
+/* Game Container */
+.game-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.game-navigation {
+  margin-bottom: 2rem;
+}
+
+.game-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.game-header h3 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.game-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.game-stats span {
+  font-weight: 600;
+  color: #667eea;
+}
+
+/* Memory Game */
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.memory-card {
+  aspect-ratio: 1;
+  background: #f8f9fa;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.memory-card:hover {
+  border-color: #667eea;
+  transform: scale(1.05);
+}
+
+.memory-card.flipped {
+  background: #667eea;
+  color: white;
+}
+
+.memory-card.matched {
+  background: #28a745;
+  border-color: #28a745;
+  cursor: default;
+}
+
+.card-front,
+.card-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.memory-card:not(.flipped) .card-back {
+  display: none;
+}
+
+.memory-card.flipped .card-front {
+  display: none;
+}
+
+/* Reaction Game */
+.reaction-area {
+  text-align: center;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reaction-start p {
+  font-size: 1.1rem;
+  color: #666;
+  margin-bottom: 2rem;
+  max-width: 400px;
+}
+
+.reaction-waiting {
+  width: 200px;
+  height: 200px;
+  background: #ffc107;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.waiting-indicator p {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.reaction-ready {
+  width: 200px;
+  height: 200px;
+  background: #28a745;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: pulse 0.5s ease-in-out infinite;
+}
+
+.ready-indicator p {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+}
+
+.reaction-result h4 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+/* Pattern Game */
+.pattern-display {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  min-height: 60px;
+  align-items: center;
+}
+
+.pattern-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  opacity: 0.3;
+  transition: all 0.3s ease;
+}
+
+.pattern-dot.showing {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.pattern-dot.red { background: #e74c3c; }
+.pattern-dot.blue { background: #3498db; }
+.pattern-dot.green { background: #2ecc71; }
+.pattern-dot.yellow { background: #f1c40f; }
+
+.pattern-controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.pattern-btn {
+  width: 60px;
+  height: 60px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-weight: 600;
+  color: white;
+  text-transform: capitalize;
+  transition: all 0.3s ease;
+}
+
+.pattern-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.pattern-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pattern-btn.red { background: #e74c3c; }
+.pattern-btn.blue { background: #3498db; }
+.pattern-btn.green { background: #2ecc71; }
+.pattern-btn.yellow { background: #f1c40f; }
+
+/* Game Placeholder */
+.game-placeholder {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+}
+
+.game-placeholder h3 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* User Progress */
+.user-progress {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-top: 3rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  text-align: center;
+}
+
+.user-progress h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.progress-stats {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .games-header h1 {
+    font-size: 2.5rem;
+  }
+
+  .games-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benefits-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .game-content {
+    padding: 1.5rem;
+  }
+
+  .game-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .game-stats {
+    justify-content: center;
+  }
+
+  .memory-grid {
+    max-width: 280px;
+  }
+
+  .reaction-waiting,
+  .reaction-ready {
+    width: 150px;
+    height: 150px;
+  }
+
+  .pattern-controls {
+    flex-wrap: wrap;
+  }
+
+  .progress-stats {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .benefits-section {
+    padding: 2rem;
+  }
+
+  .benefits-section h2 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .benefits-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pattern-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 0.8rem;
+  }
+
+  .memory-grid {
+    gap: 0.5rem;
+    max-width: 240px;
+  }
+}
