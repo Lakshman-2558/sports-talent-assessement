@@ -12,6 +12,7 @@ import Register from './pages/Auth/Register';
 import Dashboard from './pages/Dashboard/Dashboard';
 import SAIDashboard from './pages/SAIDashboard/SAIDashboard';
 import VideoAssessment from './pages/VideoAssessment/VideoAssessment';
+import GestureRecordingPage from './pages/GestureRecording/GestureRecordingPage';
 import { AuthProvider } from './contexts/AuthContext';
 import './App.css';
 import ForgotPassword from './pages/Auth/Forgetpass';
@@ -35,6 +36,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/sai-dashboard" element={<SAIDashboard />} />
               <Route path="/video-assessment" element={<VideoAssessment />} />
+              <Route path="/gesture-recording" element={<GestureRecordingPage />} />
             </Routes>
           </main>
           <Footer />

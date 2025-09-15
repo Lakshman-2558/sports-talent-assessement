@@ -54,6 +54,18 @@ const userSchema = new mongoose.Schema({
     required: [true, 'City is required'],
     trim: true
   },
+  // Location coordinates for proximity-based features
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: [0, 0]
+    }
+  },
   specialization: {
     type: String,
     required: [true, 'Specialization is required'],
@@ -152,6 +164,8 @@ const userSchema = new mongoose.Schema({
 // Index for better query performance
 userSchema.index({ email: 1, userType: 1 });
 userSchema.index({ userType: 1, isActive: 1 });
+userSchema.index({ location: '2dsphere' });
+userSchema.index({ userType: 1, 'location.coordinates': 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

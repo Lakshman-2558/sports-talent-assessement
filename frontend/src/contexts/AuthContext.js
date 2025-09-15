@@ -171,14 +171,8 @@ export const AuthProvider = ({ children }) => {
       
       console.log('✅ Registration successful:', response.data.user.email);
 
-      const { token: newToken, user: newUser } = response.data;
-      
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
-      setUser(newUser);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-
-      return { success: true, user: newUser };
+      // Don't auto-login after registration - let user login manually
+      return { success: true, user: response.data.user };
     } catch (error) {
       console.error('❌ Registration failed:', error.response?.data);
       return {

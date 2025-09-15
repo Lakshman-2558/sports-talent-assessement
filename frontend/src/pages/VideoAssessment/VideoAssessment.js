@@ -16,7 +16,6 @@ const VideoAssessment = () => {
   const [selectedTest, setSelectedTest] = useState(searchParams.get('test') || 'vertical_jump');
   const [countdown, setCountdown] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [videoBlob, setVideoBlob] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [showInstructions, setShowInstructions] = useState(true);
@@ -136,7 +135,6 @@ const VideoAssessment = () => {
       const blob = new Blob(recordedChunks, {
         type: "video/webm"
       });
-      setVideoBlob(blob);
       
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -158,11 +156,24 @@ const VideoAssessment = () => {
       const blob = new Blob(recordedChunks, { type: "video/webm" });
       const formData = new FormData();
       formData.append('video', blob, `${selectedTest}_${Date.now()}.webm`);
-      formData.append('testType', selectedTest);
-      formData.append('athleteId', user.id);
+      formData.append('title', `${currentTest.name} - Assessment`);
+      formData.append('description', `${currentTest.name} assessment video for performance analysis`);
+      formData.append('sport', 'fitness');
+      formData.append('category', 'assessment');
+      formData.append('videoType', 'assignment_submission');
+      formData.append('skillLevel', 'beginner');
+      formData.append('visibility', 'coaches_only');
+      
+      // Use user's actual location or default coordinates if not available
+      formData.append('latitude', user.latitude || '28.6139'); // Default to Delhi coordinates
+      formData.append('longitude', user.longitude || '77.2090');
+      formData.append('city', user.city || 'Unknown');
+      formData.append('state', user.state || 'Unknown');
+      formData.append('tags', `${selectedTest},assessment,fitness`);
 
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/assessments/upload`,
+      // Upload video first
+      const uploadResponse = await axios.post(
+        `${process.env.REACT_APP_API_URL}/videos/upload`,
         formData,
         {
           headers: {
@@ -171,12 +182,26 @@ const VideoAssessment = () => {
         }
       );
 
-      setAnalysisResult(response.data);
-      
-      // Navigate to results page after successful upload
-      setTimeout(() => {
-        navigate(`/dashboard?tab=assessments`);
-      }, 3000);
+      if (uploadResponse.data.success) {
+        // Then analyze the video
+        const analysisResponse = await axios.post(
+          `${process.env.REACT_APP_API_URL}/videos/analyze`,
+          {
+            videoUrl: uploadResponse.data.video.videoUrl,
+            testType: selectedTest
+          }
+        );
+
+        setAnalysisResult({
+          ...analysisResponse.data.analysis,
+          videoId: uploadResponse.data.video._id
+        });
+        
+        // Navigate to dashboard after successful upload
+        setTimeout(() => {
+          navigate('/athlete-dashboard');
+        }, 3000);
+      }
 
     } catch (error) {
       console.error('Upload error:', error);
@@ -328,13 +353,16 @@ const VideoAssessment = () => {
 
               {recordedChunks.length > 0 && !capturing && (
                 <div className="recording-actions">
-                  <button
-                    className="btn btn-secondary"
-                    onClick={handleDownload}
-                  >
-                    <i className="fas fa-download"></i>
-                    Download Video
-                  </button>
+                  {/* Only show download for coaches and officials, not athletes */}
+                  {user.userType !== 'athlete' && (
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleDownload}
+                    >
+                      <i className="fas fa-download"></i>
+                      Download Video
+                    </button>
+                  )}
                   
                   <button
                     className="btn btn-primary upload-btn"
@@ -349,7 +377,7 @@ const VideoAssessment = () => {
                     ) : (
                       <>
                         <i className="fas fa-cloud-upload-alt"></i>
-                        Upload & Analyze
+                        Submit for Analysis
                       </>
                     )}
                   </button>
@@ -358,7 +386,6 @@ const VideoAssessment = () => {
                     className="btn btn-outline"
                     onClick={() => {
                       setRecordedChunks([]);
-                      setVideoBlob(null);
                     }}
                   >
                     <i className="fas fa-redo"></i>

@@ -1,32 +1,42 @@
 const express = require('express');
-const multer = require('multer');
 const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
 const logger = require('../utils/logger');
+const Video = require('../models/Video');
+const User = require('../models/User');
+// Try Cloudinary first, fallback to local storage if it fails
+let videoUtils;
+try {
+  videoUtils = require('../utils/cloudinary');
+} catch (error) {
+  console.log('Cloudinary not available, using local storage');
+  videoUtils = require('../utils/localStorage');
+}
+const { uploadVideo, deleteVideo, generateThumbnail, getVideoDuration } = videoUtils;
 
 const router = express.Router();
 
-// Configure multer for video uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 200 * 1024 * 1024, // 200MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only video files are allowed'), false);
-    }
-  }
-});
-
 // @route   POST /api/videos/upload
-// @desc    Upload video file to cloud storage
+// @desc    Upload video file with location and metadata
 // @access  Private
-router.post('/upload', auth, upload.single('video'), async (req, res) => {
+router.post('/upload', auth, uploadVideo.single('video'), [
+  body('title').notEmpty().withMessage('Video title is required'),
+  body('sport').notEmpty().withMessage('Sport type is required'),
+  body('latitude').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude is required'),
+  body('longitude').isFloat({ min: -180, max: 180 }).withMessage('Valid longitude is required'),
+  body('city').notEmpty().withMessage('City is required'),
+  body('state').notEmpty().withMessage('State is required')
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -34,34 +44,61 @@ router.post('/upload', auth, upload.single('video'), async (req, res) => {
       });
     }
 
-    const videoBuffer = req.file.buffer;
-    const originalName = req.file.originalname;
-    const mimeType = req.file.mimetype;
+    const { title, description, sport, category, skillLevel, visibility, shareRadius, latitude, longitude, city, state, address, tags, videoType } = req.body;
 
-    // TODO: Implement actual cloud storage upload (Cloudinary, AWS S3, etc.)
-    // For now, we'll simulate the upload process
+    // Video uploaded via multer (Cloudinary or local storage)
+    const videoUrl = req.file.path || `/uploads/videos/${req.file.filename}`;
+    const videoPublicId = req.file.filename;
     
-    const videoId = `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const videoUrl = `https://storage.example.com/videos/${videoId}.${originalName.split('.').pop()}`;
-    const thumbnailUrl = `https://storage.example.com/thumbnails/${videoId}_thumb.jpg`;
+    // Generate thumbnail from video
+    const thumbnailUrl = await generateThumbnail(videoPublicId);
+    
+    // Get video duration
+    const duration = await getVideoDuration(videoPublicId);
 
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Auto-approve certain video types
+    let videoStatus = 'pending';
+    if (videoType === 'assignment_submission' || videoType === 'gesture_practice') {
+      videoStatus = 'approved'; // Auto-approve assessment and practice videos
+    }
 
-    logger.info(`Video uploaded: ${originalName} by user ${req.user.email}`);
+    // Create video document
+    const video = new Video({
+      title,
+      description,
+      videoUrl,
+      thumbnailUrl,
+      uploadedBy: req.user.id,
+      videoPublicId, // Store Cloudinary public ID for deletion
+      duration,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+      location: {
+        type: 'Point',
+        coordinates: [parseFloat(longitude), parseFloat(latitude)],
+        address,
+        city,
+        state
+      },
+      sport,
+      category: category || 'training',
+      videoType: videoType || 'regular_upload',
+      skillLevel: skillLevel || 'beginner',
+      visibility: visibility || 'coaches_only',
+      shareRadius: shareRadius || 50,
+      tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+      status: videoStatus
+    });
+
+    await video.save();
+    await video.populate('uploadedBy', 'name userType specialization');
+
+    logger.info(`Video uploaded: ${title} by user ${req.user.email}`);
 
     res.json({
       success: true,
       message: 'Video uploaded successfully',
-      video: {
-        id: videoId,
-        url: videoUrl,
-        thumbnailUrl,
-        originalName,
-        mimeType,
-        size: req.file.size,
-        uploadedAt: new Date()
-      }
+      video
     });
 
   } catch (error) {
@@ -147,19 +184,65 @@ router.post('/analyze', auth, [
 
 // @route   GET /api/videos/:id/stream
 // @desc    Stream video file
-// @access  Private
-router.get('/:id/stream', auth, async (req, res) => {
+// @access  Public (we'll handle auth differently for video streaming)
+router.get('/:id/stream', async (req, res) => {
   try {
     const videoId = req.params.id;
     
-    // TODO: Implement actual video streaming from cloud storage
-    // For now, we'll return a placeholder response
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    console.log('Streaming video:', video.title, 'URL:', video.videoUrl);
+
+    // Increment view count
+    video.views = (video.views || 0) + 1;
+    await video.save();
+
+    // Handle different video URL types
+    let videoUrl = video.videoUrl;
     
-    res.json({
-      success: true,
-      message: 'Video streaming endpoint',
-      streamUrl: `https://storage.example.com/videos/${videoId}/stream`,
-      note: 'This is a placeholder. Implement actual streaming logic.'
+    // Set CORS headers for video streaming
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    
+    // If it's a local file path, serve it directly
+    if (videoUrl.startsWith('/uploads/')) {
+      const path = require('path');
+      const fs = require('fs');
+      const filePath = path.join(__dirname, '..', videoUrl);
+      
+      if (fs.existsSync(filePath)) {
+        // Set proper content type for video
+        res.setHeader('Content-Type', 'video/mp4');
+        return res.sendFile(path.resolve(filePath));
+      } else {
+        return res.status(404).json({
+          success: false,
+          message: 'Video file not found on server'
+        });
+      }
+    }
+    
+    // If it's a Cloudinary URL or any HTTP URL, redirect to it
+    if (videoUrl.startsWith('http')) {
+      return res.redirect(videoUrl);
+    }
+    
+    // If videoUrl is relative, make it absolute
+    if (videoUrl.startsWith('uploads/')) {
+      const fullUrl = `${req.protocol}://${req.get('host')}/${videoUrl}`;
+      return res.redirect(fullUrl);
+    }
+    
+    return res.status(404).json({
+      success: false,
+      message: 'Video URL format not supported'
     });
 
   } catch (error) {
@@ -178,10 +261,32 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const videoId = req.params.id;
     
-    // TODO: Implement actual video deletion from cloud storage
-    // For now, we'll simulate the deletion
+    // Find the video first
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    // Authorization check: Only video owner or SAI officials can delete
+    if (video.uploadedBy.toString() !== req.user.id && req.user.userType !== 'sai_official') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this video'
+      });
+    }
+
+    // Delete from Cloudinary
+    if (video.videoPublicId) {
+      await deleteVideo(video.videoPublicId);
+    }
     
-    logger.info(`Video deleted: ${videoId} by user ${req.user.email}`);
+    // Delete from database
+    await Video.findByIdAndDelete(videoId);
+    
+    logger.info(`Video deleted: ${video.title} (${videoId}) by user ${req.user.email}`);
 
     res.json({
       success: true,
@@ -262,5 +367,285 @@ function generateRawMeasurements(testType) {
 
   return measurementsMap[testType] || {};
 }
+
+// @route   GET /api/videos/nearby
+// @desc    Get videos near user's location
+// @access  Private
+router.get('/nearby', auth, async (req, res) => {
+  try {
+    const { latitude, longitude, radius = 50, sport, category } = req.query;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude and longitude are required'
+      });
+    }
+
+    const filters = {};
+    if (sport) filters.sport = sport;
+    if (category) filters.category = category;
+
+    // Determine what videos user can see based on their role
+    let videos;
+    if (req.user.userType === 'coach') {
+      videos = await Video.findForCoaches(
+        parseFloat(longitude),
+        parseFloat(latitude),
+        parseFloat(radius)
+      ).sort({ createdAt: -1 });
+    } else if (req.user.userType === 'sai_official') {
+      videos = await Video.findForSAIOfficials(
+        parseFloat(longitude),
+        parseFloat(latitude),
+        parseFloat(radius)
+      ).sort({ createdAt: -1 });
+    } else {
+      // Athletes can only see their own videos and public ones
+      videos = await Video.findNearby(
+        parseFloat(longitude),
+        parseFloat(latitude),
+        parseFloat(radius),
+        {
+          $or: [
+            { uploadedBy: req.user.id },
+            { visibility: 'public' }
+          ],
+          ...filters
+        }
+      ).sort({ createdAt: -1 });
+    }
+
+    res.json({
+      success: true,
+      count: videos.length,
+      videos
+    });
+
+  } catch (error) {
+    logger.error('Nearby videos fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching nearby videos'
+    });
+  }
+});
+
+// @route   GET /api/videos/my-videos
+// @desc    Get user's uploaded videos
+// @access  Private
+router.get('/my-videos', auth, async (req, res) => {
+  try {
+    const videos = await Video.find({ uploadedBy: req.user.id })
+      .populate('uploadedBy', 'name userType specialization')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: videos.length,
+      videos
+    });
+
+  } catch (error) {
+    logger.error('My videos fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching user videos'
+    });
+  }
+});
+
+// @route   POST /api/videos/:id/like
+// @desc    Like/unlike a video
+// @access  Private
+router.post('/:id/like', auth, async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    const isLiked = video.isLikedBy(req.user.id);
+    
+    if (isLiked) {
+      video.removeLike(req.user.id);
+    } else {
+      video.addLike(req.user.id);
+    }
+
+    await video.save();
+
+    res.json({
+      success: true,
+      message: isLiked ? 'Video unliked' : 'Video liked',
+      likeCount: video.likeCount,
+      isLiked: !isLiked
+    });
+
+  } catch (error) {
+    logger.error('Video like error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error processing like'
+    });
+  }
+});
+
+// @route   POST /api/videos/:id/comment
+// @desc    Add comment to video
+// @access  Private
+router.post('/:id/comment', auth, [
+  body('comment').notEmpty().withMessage('Comment text is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const video = await Video.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    video.addComment(req.user.id, req.body.comment);
+    await video.save();
+    await video.populate('comments.user', 'name userType');
+
+    res.json({
+      success: true,
+      message: 'Comment added successfully',
+      comment: video.comments[video.comments.length - 1]
+    });
+
+  } catch (error) {
+    logger.error('Video comment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error adding comment'
+    });
+  }
+});
+
+// @route   PUT /api/videos/:id/verify
+// @desc    Verify assessment video (coaches only)
+// @access  Private
+router.put('/:id/verify', auth, authorize(['coach']), [
+  body('verificationStatus').isIn(['approved', 'rejected']).withMessage('Verification status must be approved or rejected'),
+  body('verificationNotes').optional().isString().withMessage('Verification notes must be a string')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { verificationStatus, verificationNotes } = req.body;
+    
+    const video = await Video.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    // Only allow verification of assessment videos
+    if (video.videoType !== 'assignment_submission') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only assessment videos can be verified'
+      });
+    }
+
+    video.verificationStatus = verificationStatus;
+    video.verifiedBy = req.user.id;
+    video.verifiedAt = new Date();
+    video.verificationNotes = verificationNotes;
+
+    await video.save();
+    await video.populate(['uploadedBy', 'verifiedBy'], 'name userType specialization');
+
+    logger.info(`Video ${verificationStatus} by coach ${req.user.email}: ${video.title}`);
+
+    res.json({
+      success: true,
+      message: `Video ${verificationStatus} successfully`,
+      video
+    });
+
+  } catch (error) {
+    logger.error('Video verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during verification'
+    });
+  }
+});
+
+// @route   PUT /api/videos/:id/moderate
+// @desc    Moderate video (SAI officials only)
+// @access  Private
+router.put('/:id/moderate', auth, authorize(['sai_official']), [
+  body('status').isIn(['approved', 'rejected', 'flagged']).withMessage('Invalid status')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { status, moderationNotes } = req.body;
+    
+    const video = await Video.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+    }
+
+    video.status = status;
+    video.moderatedBy = req.user.id;
+    video.moderatedAt = new Date();
+    video.moderationNotes = moderationNotes;
+
+    await video.save();
+    await video.populate(['uploadedBy', 'moderatedBy'], 'name userType');
+
+    logger.info(`Video ${status} by ${req.user.email}: ${video.title}`);
+
+    res.json({
+      success: true,
+      message: `Video ${status} successfully`,
+      video
+    });
+
+  } catch (error) {
+    logger.error('Video moderation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during moderation'
+    });
+  }
+});
 
 module.exports = router;

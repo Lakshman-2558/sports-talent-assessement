@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import AthleteRegistration from '../../components/Registration/AthleteRegistration';
+import CoachRegistration from '../../components/Registration/CoachRegistration';
+import SAIOfficialRegistration from '../../components/Registration/SAIOfficialRegistration';
 import './Auth.css';
 
 const Register = () => {
@@ -57,6 +60,8 @@ const Register = () => {
     const result = await register(formData);
     
     if (result.success) {
+      // Show success message and redirect to login instead of auto-login
+      alert('Registration successful! Please log in with your credentials.');
       navigate('/login');
     } else {
       setError(result.message);

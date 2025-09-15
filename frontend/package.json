@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675465747",
+    "@mediapipe/drawing_utils": "^0.3.1675465747",
+    "@mediapipe/pose": "^0.5.1675469404",
     "@tensorflow/tfjs": "^4.2.0",
     "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/react": "^13.3.0",

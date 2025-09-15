@@ -1,33 +1,19 @@
 const express = require('express');
-const multer = require('multer');
 const { body, validationResult } = require('express-validator');
 const Assessment = require('../models/Assessment');
 const User = require('../models/User');
 const { auth, authorize } = require('../middleware/auth');
+const { uploadVideo, generateThumbnail, getVideoDuration } = require('../utils/cloudinary');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
-// Configure multer for video uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only video files are allowed'), false);
-    }
-  }
-});
+// Multer configuration is handled in cloudinary.js
 
 // @route   POST /api/assessments/upload
 // @desc    Upload and analyze assessment video
 // @access  Private (Athletes only)
-router.post('/upload', auth, authorize('athlete'), upload.single('video'), [
+router.post('/upload', auth, authorize('athlete'), uploadVideo.single('video'), [
   body('testType').isIn([
     'vertical_jump', 'shuttle_run', 'sit_ups', 'endurance_run_800m', 
     'endurance_run_1500m', 'height_weight', 'flexibility', 'strength_test'
@@ -51,7 +37,6 @@ router.post('/upload', auth, authorize('athlete'), upload.single('video'), [
     }
 
     const { testType } = req.body;
-    const videoBuffer = req.file.buffer;
 
     // Create assessment record
     const assessment = new Assessment({
@@ -62,10 +47,24 @@ router.post('/upload', auth, authorize('athlete'), upload.single('video'), [
       verificationStatus: 'pending'
     });
 
-    // TODO: Implement video upload to cloud storage (Cloudinary/AWS S3)
-    // For now, we'll simulate the upload
-    assessment.videoUrl = `https://storage.example.com/videos/${assessment._id}.webm`;
-    assessment.videoThumbnail = `https://storage.example.com/thumbnails/${assessment._id}.jpg`;
+    // Upload video to Cloudinary
+    assessment.videoUrl = req.file.path;
+    assessment.videoPublicId = req.file.filename;
+    
+    // Generate thumbnail
+    try {
+      assessment.videoThumbnail = await generateThumbnail(req.file.filename);
+    } catch (error) {
+      logger.warn('Failed to generate thumbnail:', error);
+      assessment.videoThumbnail = null;
+    }
+
+    // Get video duration
+    try {
+      assessment.videoDuration = await getVideoDuration(req.file.filename);
+    } catch (error) {
+      logger.warn('Failed to get video duration:', error);
+    }
 
     // TODO: Implement AI analysis
     // For now, we'll simulate AI analysis results

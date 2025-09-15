@@ -48,10 +48,10 @@ emailTransporter.verify((error, success) => {
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-domain.com'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
-  credentials: true
+  origin: [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept']
 }));
 
 // Rate limiting
@@ -79,6 +79,12 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Exclude video streaming from rate limiting first
+app.use('/api/videos/*/stream', (req, res, next) => {
+  // Skip rate limiting for video streaming
+  next();
+});
+
 app.use('/api/', generalLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth/forgot-password', otpLimiter);
@@ -88,6 +94,17 @@ app.use('/api/auth/resend-otp', otpLimiter);
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Serve static files from uploads directory with proper headers
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.mov')) {
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  }
+}));
 
 // Logging middleware
 if (process.env.NODE_ENV !== 'test') {
@@ -109,12 +126,10 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/assessments', assessmentRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/videos', videoRoutes);
-app.use('/api/sports', sportsRoutes);
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/videos', require('./routes/videos'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/gesture-analysis', require('./routes/gestureAnalysis'));
 
 // OTP Model (simple in-memory storage for demo - use database in production)
 const otpStorage = new Map();

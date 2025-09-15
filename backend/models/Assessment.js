@@ -31,6 +31,9 @@ const assessmentSchema = new mongoose.Schema({
       return ['vertical_jump', 'shuttle_run', 'sit_ups', 'endurance_run_800m', 'endurance_run_1500m'].includes(this.assessmentType);
     }
   },
+  videoPublicId: {
+    type: String // Cloudinary public ID for video management
+  },
   videoThumbnail: {
     type: String
   },
