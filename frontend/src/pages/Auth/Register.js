@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import AthleteRegistration from '../../components/Registration/AthleteRegistration';
-import CoachRegistration from '../../components/Registration/CoachRegistration';
-import SAIOfficialRegistration from '../../components/Registration/SAIOfficialRegistration';
 import './Auth.css';
 
 const Register = () => {
@@ -22,6 +19,7 @@ const Register = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const submittingRef = useRef(false);
   const [searchParams] = useSearchParams();
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -42,7 +40,10 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Guard against double-submits
+    if (loading || submittingRef.current) return;
     setLoading(true);
+    submittingRef.current = true;
     setError('');
 
     if (formData.password !== formData.confirmPassword) {
@@ -57,17 +58,19 @@ const Register = () => {
       return;
     }
 
-    const result = await register(formData);
-    
-    if (result.success) {
-      // Show success message and redirect to login instead of auto-login
-      alert('Registration successful! Please log in with your credentials.');
-      navigate('/login');
-    } else {
-      setError(result.message);
+    try {
+      const result = await register(formData);
+      if (result.success) {
+        // Show success message and redirect to login instead of auto-login
+        alert('Registration successful! Please log in with your credentials.');
+        navigate('/login');
+      } else {
+        setError(result.message);
+      }
+    } finally {
+      setLoading(false);
+      submittingRef.current = false;
     }
-    
-    setLoading(false);
   };
 
   return (

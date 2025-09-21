@@ -34,6 +34,14 @@ const Dashboard = () => {
     );
   }
 
+  // Log user data for debugging
+  console.log('Dashboard - User data:', {
+    id: user._id,
+    userType: user.userType,
+    name: user.name,
+    email: user.email
+  });
+
   // Route to appropriate dashboard based on user type
   switch (user.userType) {
     case 'athlete':
@@ -41,13 +49,15 @@ const Dashboard = () => {
     case 'coach':
       return <CoachDashboard />;
     case 'sai_official':
+      // Fallback in case someone accesses /dashboard as SAI official
       return <SAIOfficialDashboard />;
     default:
+      console.error('Unknown user type:', user.userType);
       return (
         <div className="dashboard-page">
           <div className="container">
             <div className="error-message">
-              <h2>Invalid User Type</h2>
+              <h2>Invalid User Type: {user.userType || 'undefined'}</h2>
               <p>Unable to determine dashboard type for user: {user.userType}</p>
             </div>
           </div>

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import VideoPlayer from '../../components/VideoPlayer/VideoPlayer';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './Dashboard.css';
 
 const CoachDashboard = () => {
@@ -9,87 +11,145 @@ const CoachDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [nearbyVideos, setNearbyVideos] = useState([]);
   const [myVideos, setMyVideos] = useState([]);
-  // const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [locationLoading, setLocationLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
-  const [filters, setFilters] = useState({
-    sport: '',
-    category: '',
-    radius: 50
-  });
+  const [filters, setFilters] = useState({ sport: '', category: '', radius: 50 });
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedVideoForPlayer, setSelectedVideoForPlayer] = useState(null);
   const [comment, setComment] = useState('');
 
-  const fetchNearbyVideos = useCallback(async () => {
-    if (!userLocation) return;
+  // Get current location
+  const getCurrentLocation = useCallback(() => {
+    setLocationLoading(true);
     
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      setLocationLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        };
+        
+        setUserLocation(location);
+        setLocationLoading(false);
+        toast.success('Location detected successfully');
+      },
+      (error) => {
+        console.error('Location error:', error);
+        let errorMessage = 'Could not get your location. ';
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Please enable location permissions.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out.';
+            break;
+          default:
+            errorMessage += 'Unknown error.';
+        }
+        
+        toast.error(errorMessage);
+        setLocationLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000
+      }
+    );
+  }, []);
+
+  // Fetch nearby videos
+  const fetchNearbyVideos = useCallback(async (latitude, longitude) => {
+    if (!latitude || !longitude) {
+      toast.error('Location required to find nearby athletes');
+      return;
+    }
+
     try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
       const params = {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
+        latitude,
+        longitude,
         radius: filters.radius
       };
       
       if (filters.sport) params.sport = filters.sport;
       if (filters.category) params.category = filters.category;
 
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/videos/nearby`, { params });
-      setNearbyVideos(response.data.videos || []);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL|| ''}/assessments/nearby`, { 
+        params,
+        headers: { 'Authorization': `Bearer ${token}` },
+        timeout: 15000
+      });
+      
+      if (response.data.success) {
+        setNearbyVideos(response.data.assessments || []);
+        if (response.data.assessments.length > 0) {
+          toast.success(`Found ${response.data.count} nearby athletes`);
+        }
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch nearby videos');
+      }
     } catch (error) {
       console.error('Error fetching nearby videos:', error);
-    }
-  }, [userLocation, filters.radius, filters.sport, filters.category]);
-
-  useEffect(() => {
-    if (user) {
-      getCurrentLocation();
-      fetchDashboardData();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (userLocation) {
-      fetchNearbyVideos();
-    }
-  }, [userLocation, fetchNearbyVideos]);
-
-  const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setUserLocation({ latitude: 28.6139, longitude: 77.2090 }); // Delhi default
-        }
-      );
-    }
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const videosRes = await axios.get(`${process.env.REACT_APP_API_URL}/videos/my-videos`);
-      setMyVideos(videosRes.data.videos || []);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      
+      if (error.code === 'ECONNABORTED') {
+        toast.error('Request timeout. Please try again.');
+      } else if (error.response?.status === 500) {
+        toast.error('Server error. Please contact support.');
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to load nearby videos');
+      }
+      
+      setNearbyVideos([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.radius, filters.sport, filters.category]);
 
+  // Fetch coach's own videos
+  const fetchDashboardData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${process.env.REACT_APP_API_URL|| ''}/assessments/my-videos`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setMyVideos(response.data.videos || []);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    }
+  };
 
   const handleLikeVideo = async (videoId) => {
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/videos/${videoId}/like`);
-      fetchNearbyVideos(); // Refresh to get updated like count
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${process.env.REACT_APP_API_URL|| ''}/assessments/${videoId}/like`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.data.success) {
+        setNearbyVideos(prev => prev.map(video => 
+          video._id === videoId 
+            ? { ...video, likeCount: response.data.likeCount, likes: response.data.liked ? [...video.likes, user.id] : video.likes.filter(id => id !== user.id) }
+            : video
+        ));
+      }
     } catch (error) {
       console.error('Error liking video:', error);
+      toast.error('Failed to like video');
     }
   };
 
@@ -97,48 +157,65 @@ const CoachDashboard = () => {
     if (!comment.trim()) return;
     
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/videos/${videoId}/comment`, {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${process.env.REACT_APP_API_URL|| ''}/assessments/${videoId}/comment`, {
         comment: comment.trim()
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.data.success) {
-        // Update the video in nearbyVideos
         setNearbyVideos(prev => prev.map(video => 
           video._id === videoId 
-            ? { ...video, commentCount: (video.commentCount || 0) + 1 }
+            ? { ...video, commentCount: (video.commentCount || 0) + 1, comments: [...video.comments, response.data.comment] }
             : video
         ));
         setComment('');
         setSelectedVideo(null);
-        alert('Comment added successfully!');
+        toast.success('Comment added successfully!');
       }
     } catch (error) {
       console.error('Error adding comment:', error);
-      alert('Failed to add comment');
+      toast.error('Failed to add comment');
     }
   };
 
   const handleVerifyVideo = async (videoId, verificationStatus, notes = '') => {
     try {
-      const response = await axios.put(`${process.env.REACT_APP_API_URL}/videos/${videoId}/verify`, {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(`${process.env.REACT_APP_API_URL|| ''}/assessments/${videoId}/verify`, {
         verificationStatus,
         verificationNotes: notes
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.data.success) {
-        // Update the video in nearbyVideos
         setNearbyVideos(prev => prev.map(video => 
           video._id === videoId 
             ? { ...video, verificationStatus, verifiedBy: user.id, verifiedAt: new Date() }
             : video
         ));
-        alert(`Video ${verificationStatus} successfully!`);
+        toast.success(`Video ${verificationStatus} successfully!`);
       }
     } catch (error) {
       console.error('Error verifying video:', error);
-      alert('Failed to verify video');
+      toast.error('Failed to verify video');
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      getCurrentLocation();
+      fetchDashboardData();
+    }
+  }, [user, getCurrentLocation]);
+
+  useEffect(() => {
+    if (userLocation) {
+      fetchNearbyVideos(userLocation.latitude, userLocation.longitude);
+    }
+  }, [userLocation, fetchNearbyVideos]);
 
   const renderOverview = () => (
     <div className="overview-content">
@@ -189,10 +266,10 @@ const CoachDashboard = () => {
       <div className="recent-activity">
         <h3>Recent Athlete Videos</h3>
         {nearbyVideos.slice(0, 3).map(video => (
-          <div key={video._id} className="activity-item">
+          <div key={video._id} className="activity-item" onClick={() => setSelectedVideoForPlayer(video)}>
             <div className="activity-thumbnail">
-              {video.thumbnailUrl ? (
-                <img src={video.thumbnailUrl} alt="Video thumbnail" />
+              {video.videoThumbnail ? (
+                <img src={video.videoThumbnail} alt="Video thumbnail" />
               ) : (
                 <div className="thumbnail-placeholder">
                   <i className="fas fa-play"></i>
@@ -200,13 +277,13 @@ const CoachDashboard = () => {
               )}
             </div>
             <div className="activity-info">
-              <h4>{video.title}</h4>
-              <p>by {video.uploadedBy?.name} • {video.sport}</p>
-              <small>{video.location?.city}, {video.location?.state}</small>
+              <h4>{video.assessmentType?.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</h4>
+              <p>by {video.athlete?.name}</p>
+              <small>{new Date(video.testDate).toLocaleDateString()}</small>
             </div>
             <div className="activity-distance">
               <i className="fas fa-map-marker-alt"></i>
-              <span>~{Math.round(Math.random() * 30 + 5)}km away</span>
+              <span>Location recorded</span>
             </div>
           </div>
         ))}
@@ -218,156 +295,181 @@ const CoachDashboard = () => {
     <div className="athletes-content">
       <div className="athletes-header">
         <h2>Nearby Athletes</h2>
+        
+        {locationLoading ? (
+          <div className="location-loading">
+            <span className="spinner-border spinner-border-sm"></span>
+            Detecting your location...
+          </div>
+        ) : userLocation && (
+          <div className="location-badge">
+            <i className="fas fa-map-marker-alt"></i>
+            Searching within {filters.radius}km of your location
+          </div>
+        )}
+
         <div className="filters">
-          <select
-            value={filters.sport}
-            onChange={(e) => setFilters({...filters, sport: e.target.value})}
-          >
+          <select value={filters.sport} onChange={(e) => setFilters({...filters, sport: e.target.value})}>
             <option value="">All Sports</option>
             <option value="athletics">Athletics</option>
             <option value="football">Football</option>
             <option value="cricket">Cricket</option>
             <option value="basketball">Basketball</option>
-            <option value="badminton">Badminton</option>
-            <option value="swimming">Swimming</option>
-            <option value="wrestling">Wrestling</option>
-            <option value="boxing">Boxing</option>
           </select>
-          <select
-            value={filters.category}
-            onChange={(e) => setFilters({...filters, category: e.target.value})}
-          >
+          
+          <select value={filters.category} onChange={(e) => setFilters({...filters, category: e.target.value})}>
             <option value="">All Categories</option>
             <option value="training">Training</option>
             <option value="performance">Performance</option>
             <option value="technique">Technique</option>
-            <option value="assessment">Assessment</option>
           </select>
-          <input
-            type="number"
-            placeholder="Radius (km)"
-            value={filters.radius}
-            onChange={(e) => setFilters({...filters, radius: e.target.value})}
-            min="1"
-            max="500"
-          />
+          
+          <div className="radius-slider">
+            <label>Radius: {filters.radius}km</label>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={filters.radius}
+              onChange={(e) => setFilters({...filters, radius: e.target.value})}
+            />
+          </div>
+          
+          <button 
+            onClick={() => userLocation && fetchNearbyVideos(userLocation.latitude, userLocation.longitude)}
+            className="refresh-btn"
+            disabled={loading}
+          >
+            <i className={`fas fa-sync ${loading ? 'fa-spin' : ''}`}></i>
+            Refresh
+          </button>
         </div>
       </div>
 
-      <div className="videos-grid">
-        {nearbyVideos.length > 0 ? nearbyVideos.map(video => (
-          <div key={video._id} className="video-card coach-view">
-            <div className="video-thumbnail">
-              {video.thumbnailUrl ? (
-                <img src={video.thumbnailUrl} alt="Video thumbnail" />
-              ) : (
-                <div className="thumbnail-placeholder">
-                  <i className="fas fa-play"></i>
-                </div>
-              )}
-              <div className="video-duration">
-                {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
-              </div>
-            </div>
-            <div className="video-details">
-              <div className="athlete-info">
-                <div className="athlete-avatar">
-                  {video.uploadedBy?.name?.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h4>{video.uploadedBy?.name}</h4>
-                  <p className="athlete-specialization">{video.uploadedBy?.specialization}</p>
-                </div>
-              </div>
-              <h3 className="video-title">{video.title}</h3>
-              <p className="video-meta">{video.sport} • {video.category} • {video.skillLevel}</p>
-              <p className="video-location">
-                <i className="fas fa-map-marker-alt"></i>
-                {video.location?.city}, {video.location?.state}
-              </p>
-              {video.description && (
-                <p className="video-description">{video.description}</p>
-              )}
-              
-              <div className="video-actions">
-                <button 
-                  className="action-btn watch-btn"
-                  onClick={() => setSelectedVideoForPlayer(video)}
-                  style={{ marginRight: '10px' }}
-                >
-                  <i className="fas fa-play"></i>
-                  Watch
-                </button>
-                <button 
-                  className="action-btn like-btn"
-                  onClick={() => handleLikeVideo(video._id)}
-                >
-                  <i className="fas fa-heart"></i>
-                  {video.likeCount || 0}
-                </button>
-                <button 
-                  className="action-btn comment-btn"
-                  onClick={() => setSelectedVideo(video)}
-                >
-                  <i className="fas fa-comment"></i>
-                  {video.commentCount || 0}
-                </button>
-                {video.videoType === 'assignment_submission' && (
-                  <div className="verification-buttons">
-                    <button 
-                      className={`action-btn verify-btn ${video.verificationStatus === 'approved' ? 'approved' : ''}`}
-                      onClick={() => handleVerifyVideo(video._id, 'approved')}
-                      title="Approve this assessment video"
-                    >
-                      <i className="fas fa-check-circle"></i>
-                      Approve
-                    </button>
-                    <button 
-                      className={`action-btn verify-btn ${video.verificationStatus === 'rejected' ? 'rejected' : ''}`}
-                      onClick={() => handleVerifyVideo(video._id, 'rejected')}
-                      title="Reject this assessment video"
-                    >
-                      <i className="fas fa-times-circle"></i>
-                      Reject
-                    </button>
-                    {video.verificationStatus && video.verificationStatus !== 'pending' && (
-                      <span className={`verification-status ${video.verificationStatus}`}>
-                        {video.verificationStatus?.toUpperCase() || ''}
-                      </span>
-                    )}
+      {loading ? (
+        <div className="loading-section">
+          <div className="spinner-border text-primary"></div>
+          <p>Searching for nearby athletes...</p>
+        </div>
+      ) : nearbyVideos.length > 0 ? (
+        <div className="videos-grid">
+          {nearbyVideos.map(video => (
+            <div key={video._id} className="video-card coach-view">
+              <div className="video-thumbnail">
+                {video.videoThumbnail ? (
+                  <img src={video.videoThumbnail} alt="Video thumbnail" />
+                ) : (
+                  <div className="thumbnail-placeholder">
+                    <i className="fas fa-play"></i>
                   </div>
                 )}
-                <button className="action-btn share-btn">
-                  <i className="fas fa-share"></i>
-                  Share
-                </button>
+                {video.videoDuration && (
+                  <div className="video-duration">
+                    {Math.floor(video.videoDuration / 60)}:{(video.videoDuration % 60).toString().padStart(2, '0')}
+                  </div>
+                )}
               </div>
-
-              {video.tags && video.tags.length > 0 && (
-                <div className="video-tags">
-                  {video.tags.map((tag, index) => (
-                    <span key={index} className="tag">{tag}</span>
-                  ))}
+              
+              <div className="video-details">
+                <div className="athlete-info">
+                  <div className="athlete-avatar">
+                    {video.athlete?.name?.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h4>{video.athlete?.name}</h4>
+                    <p className="athlete-specialization">{video.athlete?.specialization}</p>
+                  </div>
                 </div>
-              )}
+                
+                <h3 className="video-title">{video.assessmentType?.split('_').map(word => 
+                  word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ')}</h3>
+                
+                <p className="video-meta">
+                  {new Date(video.testDate).toLocaleDateString()} • 
+                  {video.verificationStatus && (
+                    <span className={`verification-status ${video.verificationStatus}`}>
+                      {video.verificationStatus.toUpperCase()}
+                    </span>
+                  )}
+                </p>
+
+                {video.location && (
+                  <p className="video-location">
+                    <i className="fas fa-map-marker-alt"></i>
+                    Location recorded
+                  </p>
+                )}
+
+                <div className="video-stats">
+                  <span><i className="fas fa-eye"></i> {video.views || 0}</span>
+                  <span><i className="fas fa-heart"></i> {video.likeCount || 0}</span>
+                  <span><i className="fas fa-comment"></i> {video.commentCount || 0}</span>
+                </div>
+
+                <div className="video-actions">
+                  <button 
+                    className="action-btn watch-btn"
+                    onClick={() => setSelectedVideoForPlayer(video)}
+                  >
+                    <i className="fas fa-play"></i>
+                    Watch
+                  </button>
+                  
+                  <button 
+                    className={`action-btn like-btn ${video.likes?.includes(user.id) ? 'liked' : ''}`}
+                    onClick={() => handleLikeVideo(video._id)}
+                  >
+                    <i className="fas fa-heart"></i>
+                    {video.likeCount || 0}
+                  </button>
+                  
+                  <button 
+                    className="action-btn comment-btn"
+                    onClick={() => setSelectedVideo(video)}
+                  >
+                    <i className="fas fa-comment"></i>
+                    {video.commentCount || 0}
+                  </button>
+                  
+                  {user.role === 'coach' && (
+                    <div className="verification-buttons">
+                      <button 
+                        className={`action-btn verify-btn ${video.verificationStatus === 'verified' ? 'verified' : ''}`}
+                        onClick={() => handleVerifyVideo(video._id, 'verified')}
+                      >
+                        <i className="fas fa-check"></i>
+                        Verify
+                      </button>
+                      <button 
+                        className={`action-btn flag-btn ${video.verificationStatus === 'flagged' ? 'flagged' : ''}`}
+                        onClick={() => handleVerifyVideo(video._id, 'flagged')}
+                      >
+                        <i className="fas fa-flag"></i>
+                        Flag
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        )) : (
-          <div className="no-videos-message" style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: '#6c757d',
-            gridColumn: '1 / -1'
-          }}>
-            <i className="fas fa-users" style={{ fontSize: '48px', marginBottom: '20px', opacity: 0.5 }}></i>
-            <h3>No Athletes Found</h3>
-            <p>No athlete videos found in your area. Try adjusting your search radius or filters.</p>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="no-videos-message">
+          <i className="fas fa-users-slash"></i>
+          <h3>No Athletes Found Nearby</h3>
+          <p>Try increasing your search radius or check back later for new assessments.</p>
+          <button 
+            onClick={() => userLocation && fetchNearbyVideos(userLocation.latitude, userLocation.longitude)}
+            className="retry-btn"
+          >
+            <i className="fas fa-sync"></i> Try Again
+          </button>
+        </div>
+      )}
     </div>
   );
-
 
   const renderProfile = () => (
     <div className="profile-content">
@@ -407,33 +509,48 @@ const CoachDashboard = () => {
             </div>
             <div className="detail-item">
               <label>Phone</label>
-              <span>{user?.phone}</span>
+              <span>{user?.phone || 'Not provided'}</span>
             </div>
           </div>
         </div>
 
-        {user?.certifications && user.certifications.length > 0 && (
-          <div className="detail-section">
-            <h3>Certifications</h3>
-            <div className="certifications-list">
-              {user.certifications.map((cert, index) => (
-                <div key={index} className="certification-item">
-                  <h4>{cert.name}</h4>
-                  <p>Issued by: {cert.issuedBy}</p>
-                  <p>Date: {new Date(cert.issuedDate).toLocaleDateString()}</p>
-                  {cert.expiryDate && (
-                    <p>Expires: {new Date(cert.expiryDate).toLocaleDateString()}</p>
-                  )}
-                </div>
-              ))}
+        <div className="detail-section">
+          <h3>Coaching Stats</h3>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-icon">
+                <i className="fas fa-video"></i>
+              </div>
+              <div className="stat-info">
+                <h3>{nearbyVideos.length}</h3>
+                <p>Athletes Nearby</p>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">
+                <i className="fas fa-comment"></i>
+              </div>
+              <div className="stat-info">
+                <h3>{nearbyVideos.reduce((sum, v) => sum + (v.commentCount || 0), 0)}</h3>
+                <p>Comments Given</p>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">
+                <i className="fas fa-check-circle"></i>
+              </div>
+              <div className="stat-info">
+                <h3>{nearbyVideos.filter(v => v.verifiedBy === user.id).length}</h3>
+                <p>Videos Verified</p>
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 
-  if (loading) {
+  if (loading && activeTab === 'athletes') {
     return (
       <div className="dashboard-page">
         <div className="container">
@@ -498,18 +615,14 @@ const CoachDashboard = () => {
         <div className="modal-overlay">
           <div className="modal comment-modal">
             <div className="modal-header">
-              <h3>Add Comment</h3>
-              <button 
-                className="close-btn"
-                onClick={() => setSelectedVideo(null)}
-              >
+              <h3>Add Comment to {selectedVideo.assessmentType?.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</h3>
+              <button className="close-btn" onClick={() => setSelectedVideo(null)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
             <div className="modal-body">
               <div className="video-info">
-                <h4>{selectedVideo.title}</h4>
-                <p>by {selectedVideo.uploadedBy?.name}</p>
+                <p>by {selectedVideo.athlete?.name}</p>
               </div>
               <textarea
                 value={comment}
@@ -518,16 +631,10 @@ const CoachDashboard = () => {
                 rows="4"
               />
               <div className="modal-actions">
-                <button 
-                  className="btn btn-secondary"
-                  onClick={() => setSelectedVideo(null)}
-                >
+                <button className="btn btn-secondary" onClick={() => setSelectedVideo(null)}>
                   Cancel
                 </button>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => handleAddComment(selectedVideo._id)}
-                >
+                <button className="btn btn-primary" onClick={() => handleAddComment(selectedVideo._id)}>
                   Add Comment
                 </button>
               </div>

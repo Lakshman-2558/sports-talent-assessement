@@ -2,7 +2,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
-const User = require('../models/User');
+// Removed central User model – use role-specific models for accounts
+const Athlete = require('../models/Athlete');
+const Coach = require('../models/Coach');
+const Official = require('../models/Official');
 const OTP = require('../models/OTP');
 const { auth } = require('../middleware/auth');
 const logger = require('../utils/logger');
@@ -10,11 +13,32 @@ const { sendOTPEmail, sendPasswordResetEmail } = require('../utils/emailService'
 
 const router = express.Router();
 
-// Generate JWT Token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+// Generate JWT Token with role
+const generateToken = (userId, role) => {
+  return jwt.sign({ userId, role }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
+};
+
+// Helper: find account by role and email
+const getModelByRole = (role) => {
+  if (role === 'athlete') return Athlete;
+  if (role === 'coach') return Coach;
+  if (role === 'sai_official') return Official;
+  return null;
+};
+
+const findAccountByEmail = async (email) => {
+  const normalized = (email || '').trim().toLowerCase();
+  const [ath, coach, off] = await Promise.all([
+    Athlete.findOne({ email: normalized }).select('+password'),
+    Coach.findOne({ email: normalized }).select('+password'),
+    Official.findOne({ email: normalized }).select('+password')
+  ]);
+  if (ath) return { doc: ath, role: 'athlete' };
+  if (coach) return { doc: coach, role: 'coach' };
+  if (off) return { doc: off, role: 'sai_official' };
+  return null;
 };
 
 // @route   POST /api/auth/register
@@ -30,7 +54,8 @@ router.post('/register', [
   body('gender').isIn(['male', 'female', 'other']).withMessage('Please select a valid gender'),
   body('state').trim().isLength({ min: 2 }).withMessage('State is required'),
   body('city').trim().isLength({ min: 2 }).withMessage('City is required'),
-  body('specialization').trim().isLength({ min: 2 }).withMessage('Specialization is required')
+  body('specialization').optional().trim().isLength({ min: 2 }).withMessage('Specialization is required for coaches'),
+  body('sport').optional().trim().isLength({ min: 2 }).withMessage('Sport is required for athletes')
 ], async (req, res) => {
   try {
     // Check for validation errors
@@ -45,86 +70,75 @@ router.post('/register', [
 
     const {
       name, email, password, userType, phone, dateOfBirth,
-      gender, state, city, specialization, height, weight,
+      gender, state, city, specialization, sport, height, weight,
       bloodGroup, emergencyContact, experience, certifications,
       employeeId, department
     } = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+
+    // Check if email exists in any role collection
+    const existing = await findAccountByEmail(normalizedEmail);
+    if (existing) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists with this email'
+        message: 'Account already exists with this email'
       });
     }
 
-    // Check if SAI official employee ID already exists
-    if (userType === 'sai_official' && employeeId) {
-      const existingOfficial = await User.findOne({ employeeId });
-      if (existingOfficial) {
-        return res.status(400).json({
-          success: false,
-          message: 'Employee ID already exists'
-        });
-      }
-    }
-
-    // Create user object
-    const userData = {
-      name,
-      email,
-      password,
-      userType,
-      phone,
-      dateOfBirth,
-      gender,
-      state,
-      city,
-      specialization
-    };
-
-    // Add type-specific fields
+    // Create role-specific account
+    let accountDoc;
     if (userType === 'athlete') {
-      if (height) userData.height = height;
-      if (weight) userData.weight = weight;
-      if (bloodGroup) userData.bloodGroup = bloodGroup;
-      if (emergencyContact) userData.emergencyContact = emergencyContact;
+      accountDoc = await Athlete.create({
+        name, email: normalizedEmail, password, phone, dateOfBirth, gender, state, city,
+        sport: sport || specialization, height, weight, bloodGroup, emergencyContact
+      });
     } else if (userType === 'coach') {
-      if (experience) userData.experience = experience;
-      if (certifications) userData.certifications = certifications;
+      accountDoc = await Coach.create({
+        name, email: normalizedEmail, password, phone, dateOfBirth, gender, state, city,
+        specialization: Array.isArray(specialization) ? specialization : (specialization ? [specialization] : []),
+        experience: experience || 0,
+        certifications: Array.isArray(certifications) ? certifications : []
+      });
     } else if (userType === 'sai_official') {
-      if (employeeId) userData.employeeId = employeeId;
-      if (department) userData.department = department;
+      accountDoc = await Official.create({
+        name, email: normalizedEmail, password, phone, dateOfBirth, gender, state, city,
+        employeeId, department
+      });
     }
-
-    // Create user
-    const user = new User(userData);
-    await user.save();
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(accountDoc._id, userType);
 
     // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    accountDoc.lastLogin = new Date();
+    await accountDoc.save();
 
-    logger.info(`New user registered: ${email} (${userType})`);
+    logger.info(`New account registered: ${email} (${userType})`);
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       token,
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        isVerified: user.isVerified
+        id: accountDoc._id,
+        name: accountDoc.name,
+        email: accountDoc.email,
+        userType: userType,
+        isVerified: accountDoc.isVerified
       }
     });
 
   } catch (error) {
+    // Duplicate key error (e.g., email unique index)
+    if (error && (error.code === 11000 || error.code === 11001)) {
+      logger.warn('Registration duplicate email:', error.keyValue || {});
+      return res.status(400).json({
+        success: false,
+        message: 'Account already exists with this email'
+      });
+    }
+
     logger.error('Registration error:', error);
     res.status(500).json({
       success: false,
@@ -160,26 +174,27 @@ router.post('/login', [
     }
 
     const { email, password, userType } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     console.log('🔍 Searching for user:', { email, userType });
 
-    // Find user with password field
-    const user = await User.findOne({ 
-      email, 
-      userType,
+    // Find account in the role-specific collection
+    const Model = getModelByRole(userType);
+    const user = await Model.findOne({ 
+      email: normalizedEmail,
       isActive: true 
     }).select('+password');
 
     console.log('👤 User found:', user ? 'Yes - ' + user.email : 'No');
     
     if (!user) {
-      // Check if user exists with different userType
-      const userWithDifferentType = await User.findOne({ email, isActive: true });
-      if (userWithDifferentType) {
-        console.log('⚠️ User exists but with different type:', userWithDifferentType.userType);
+      // Check if exists with different role
+      const existing = await findAccountByEmail(normalizedEmail);
+      if (existing) {
+        console.log('⚠️ User exists but with different type:', existing.role);
         return res.status(401).json({
           success: false,
-          message: `User exists but registered as ${userWithDifferentType.userType}, not ${userType}`
+          message: `User exists but registered as ${existing.role}, not ${userType}`
         });
       }
       
@@ -203,7 +218,7 @@ router.post('/login', [
     }
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, userType);
     console.log('✅ Token generated successfully');
 
     // Update last login
@@ -220,7 +235,7 @@ router.post('/login', [
         id: user._id,
         name: user.name,
         email: user.email,
-        userType: user.userType,
+        userType: userType,
         isVerified: user.isVerified,
         profileImage: user.profileImage,
         lastLogin: user.lastLogin
@@ -256,10 +271,11 @@ router.post('/forgot-password', [
     }
 
     const { email } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
-    // Check if user exists
-    const user = await User.findOne({ email, isActive: true });
-    if (!user) {
+    // Check if account exists in any role
+    const existing = await findAccountByEmail(email);
+    if (!existing || !existing.doc.isActive) {
       return res.status(404).json({
         success: false,
         message: 'Email not found in our system'
@@ -272,7 +288,7 @@ router.post('/forgot-password', [
 
     // Save OTP to database
     await OTP.findOneAndUpdate(
-      { email, purpose: 'password-reset' },
+      { email: normalizedEmail, purpose: 'password-reset' },
       { 
         otp: otpCode, 
         expiresAt,
@@ -283,7 +299,7 @@ router.post('/forgot-password', [
     );
 
     // Send OTP email
-    await sendOTPEmail(email, otpCode);
+    await sendOTPEmail(normalizedEmail, otpCode);
 
     logger.info(`OTP sent for password reset: ${email}`);
 
@@ -322,10 +338,11 @@ router.post('/verify-otp', [
     }
 
     const { email, otp } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     // Find OTP record
     const otpRecord = await OTP.findOne({ 
-      email, 
+      email: normalizedEmail, 
       purpose: 'password-reset' 
     });
 
@@ -338,7 +355,7 @@ router.post('/verify-otp', [
 
     // Check if OTP is expired
     if (new Date() > otpRecord.expiresAt) {
-      await OTP.deleteOne({ email, purpose: 'password-reset' });
+      await OTP.deleteOne({ email: normalizedEmail, purpose: 'password-reset' });
       return res.status(400).json({
         success: false,
         message: 'OTP has expired. Please request a new one.'
@@ -352,7 +369,7 @@ router.post('/verify-otp', [
       await otpRecord.save();
 
       if (otpRecord.attempts >= 3) {
-        await OTP.deleteOne({ email, purpose: 'password-reset' });
+        await OTP.deleteOne({ email: normalizedEmail, purpose: 'password-reset' });
         return res.status(400).json({
           success: false,
           message: 'Too many failed attempts. Please request a new OTP.'
@@ -406,10 +423,11 @@ router.post('/reset-password', [
     }
 
     const { email, otp, newPassword } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     // Find OTP record
     const otpRecord = await OTP.findOne({ 
-      email, 
+      email: normalizedEmail, 
       purpose: 'password-reset' 
     });
 
@@ -430,16 +448,16 @@ router.post('/reset-password', [
 
     // Check if OTP is expired
     if (new Date() > otpRecord.expiresAt) {
-      await OTP.deleteOne({ email, purpose: 'password-reset' });
+      await OTP.deleteOne({ email: normalizedEmail, purpose: 'password-reset' });
       return res.status(400).json({
         success: false,
         message: 'OTP has expired. Please request a new one.'
       });
     }
 
-    // Find user
-    const user = await User.findOne({ email, isActive: true });
-    if (!user) {
+    // Find account in any role
+    const existing = await findAccountByEmail(normalizedEmail);
+    if (!existing || !existing.doc.isActive) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -450,18 +468,16 @@ router.post('/reset-password', [
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
     
-    // Update password using findByIdAndUpdate to trigger middleware if any
-    await User.findByIdAndUpdate(
-      user._id,
-      { password: hashedPassword },
-      { new: true }
-    );
+    // Update password by loading doc and saving to trigger pre-save hooks
+    const doc = await existing.doc.constructor.findById(existing.doc._id).select('+password');
+    doc.password = hashedPassword;
+    await doc.save();
 
     // Delete OTP record
-    await OTP.deleteOne({ email, purpose: 'password-reset' });
+    await OTP.deleteOne({ email: normalizedEmail, purpose: 'password-reset' });
 
     // Send confirmation email
-    await sendPasswordResetEmail(email, user.name);
+    await sendPasswordResetEmail(normalizedEmail, doc.name);
 
     logger.info(`Password reset successfully: ${email}`);
 
@@ -497,10 +513,11 @@ router.post('/resend-otp', [
     }
 
     const { email } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
-    // Check if user exists
-    const user = await User.findOne({ email, isActive: true });
-    if (!user) {
+    // Check if account exists in any role
+    const existing = await findAccountByEmail(normalizedEmail);
+    if (!existing || !existing.doc.isActive) {
       return res.status(404).json({
         success: false,
         message: 'Email not found in our system'
@@ -513,7 +530,7 @@ router.post('/resend-otp', [
 
     // Save new OTP to database
     await OTP.findOneAndUpdate(
-      { email, purpose: 'password-reset' },
+      { email: normalizedEmail, purpose: 'password-reset' },
       { 
         otp: otpCode, 
         expiresAt,
@@ -524,7 +541,7 @@ router.post('/resend-otp', [
     );
 
     // Send new OTP email
-    await sendOTPEmail(email, otpCode);
+    await sendOTPEmail(normalizedEmail, otpCode);
 
     logger.info(`OTP resent: ${email}`);
 
@@ -544,18 +561,65 @@ router.post('/resend-otp', [
   }
 });
 
+// @route   GET /api/auth/debug/email-exists
+// @desc    Debug which collection holds the given email and counts of blank/null emails
+// @access  Development only
+router.get('/debug/email-exists', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, message: 'Debug endpoint disabled in production' });
+    }
+
+    const email = (req.query.email || '').trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email query param is required' });
+    }
+
+    const [ath, coach, off, athBlank, coachBlank, offBlank] = await Promise.all([
+      Athlete.findOne({ email }).select('_id email name'),
+      Coach.findOne({ email }).select('_id email name'),
+      Official.findOne({ email }).select('_id email name'),
+      Athlete.countDocuments({ $or: [ { email: null }, { email: '' } ] }),
+      Coach.countDocuments({ $or: [ { email: null }, { email: '' } ] }),
+      Official.countDocuments({ $or: [ { email: null }, { email: '' } ] })
+    ]);
+
+    res.json({
+      success: true,
+      email,
+      exists: {
+        athlete: Boolean(ath),
+        coach: Boolean(coach),
+        official: Boolean(off)
+      },
+      records: {
+        athlete: ath,
+        coach: coach,
+        official: off
+      },
+      blanks: {
+        athletes: athBlank,
+        coaches: coachBlank,
+        officials: offBlank
+      }
+    });
+  } catch (error) {
+    logger.error('Debug email-exists error:', error);
+    res.status(500).json({ success: false, message: 'Server error in debug endpoint' });
+  }
+});
+
 // @route   GET /api/auth/me
 // @desc    Get current user
 // @access  Private
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    
+    const role = req.user.userType;
+    const Model = getModelByRole(role);
+    const user = await Model.findById(req.user.id);
+
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     res.json({
@@ -564,20 +628,19 @@ router.get('/me', auth, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        userType: user.userType,
+        userType: role,
         phone: user.phone,
         dateOfBirth: user.dateOfBirth,
         gender: user.gender,
         state: user.state,
         city: user.city,
         specialization: user.specialization,
+        sport: user.sport,
         profileImage: user.profileImage,
         isVerified: user.isVerified,
         points: user.points,
         badges: user.badges,
         level: user.level,
-        age: user.age,
-        displayName: user.displayName,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt
       }
@@ -585,10 +648,7 @@ router.get('/me', auth, async (req, res) => {
 
   } catch (error) {
     logger.error('Get user error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -612,16 +672,15 @@ router.put('/profile', auth, [
       });
     }
 
-    const user = await User.findById(req.user.id);
+    const role = req.user.userType;
+    const Model = getModelByRole(role);
+    const user = await Model.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     // Update allowed fields
-    const allowedFields = ['name', 'phone', 'state', 'city', 'specialization'];
+    const allowedFields = ['name', 'phone', 'state', 'city', 'specialization', 'sport'];
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         user[field] = req.body[field];
@@ -639,11 +698,12 @@ router.put('/profile', auth, [
         id: user._id,
         name: user.name,
         email: user.email,
-        userType: user.userType,
+        userType: role,
         phone: user.phone,
         state: user.state,
         city: user.city,
-        specialization: user.specialization
+        specialization: user.specialization,
+        sport: user.sport
       }
     });
 

@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const Athlete = require('../models/Athlete');
+const Coach = require('../models/Coach');
+const Official = require('../models/Official');
 const logger = require('../utils/logger');
 
 const auth = async (req, res, next) => {
@@ -16,11 +18,34 @@ const auth = async (req, res, next) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Verify token
+    // Verify token; expected payload: { userId, role }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Get user from database
-    const user = await User.findById(decoded.userId).select('-password');
+    console.log('🔍 JWT DEBUG - Decoded token:', {
+      decoded: decoded,
+      userId: decoded.userId,
+      role: decoded.role
+    });
+
+    const { userId, role } = decoded;
+    if (!userId || !role) {
+      console.log('❌ JWT DEBUG - Missing userId or role:', { userId, role });
+      return res.status(401).json({ success: false, message: 'Invalid token payload' });
+    }
+
+    // Load account from the corresponding model
+    let user = null;
+    let modelName = null;
+    if (role === 'athlete') {
+      user = await Athlete.findById(userId).select('-password');
+      modelName = 'Athlete';
+    } else if (role === 'coach') {
+      user = await Coach.findById(userId).select('-password');
+      modelName = 'Coach';
+    } else if (role === 'sai_official') {
+      user = await Official.findById(userId).select('-password');
+      modelName = 'Official';
+    }
     
     if (!user) {
       return res.status(401).json({
@@ -36,8 +61,22 @@ const auth = async (req, res, next) => {
       });
     }
 
-    // Add user to request object
-    req.user = user;
+    // Add user to request object with compatible shape
+    req.user = {
+      ...user.toObject(),
+      id: user._id,
+      userType: role,
+      _modelName: modelName
+    };
+    
+    console.log('🔍 AUTH DEBUG - User authenticated:', {
+      userId: req.user.id,
+      userType: req.user.userType,
+      role: role,
+      modelName: modelName,
+      email: req.user.email
+    });
+    
     next();
 
   } catch (error) {

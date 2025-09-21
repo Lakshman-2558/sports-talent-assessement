@@ -1,9 +1,25 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const User = require('../models/User');
 const Assessment = require('../models/Assessment');
 const { auth, authorize } = require('../middleware/auth');
 const logger = require('../utils/logger');
+
+// Helper function to get the correct model based on user type
+const getUserModel = (userType) => {
+  switch (userType) {
+    case 'athlete':
+      return Athlete;
+    case 'coach':
+      return Coach;
+    case 'sai_official':
+      return Official;
+    default:
+      throw new Error('Invalid user type');
+  }
+};
+const athlete = require('../models/Athlete');
+const coach = require('../models/Coach');
+const sai_official = require('../models/SaiOfficial');
 
 const router = express.Router();
 
@@ -12,8 +28,19 @@ const router = express.Router();
 // @access  Private
 router.get('/profile/:id', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('-password');
+    // First try to find the user by ID in any of the models
+    let user = await Athlete.findById(req.params.id).select('-password');
+    let userType = 'athlete';
+    
+    if (!user) {
+      user = await Coach.findById(req.params.id).select('-password');
+      userType = 'coach';
+    }
+    
+    if (!user) {
+      user = await Official.findById(req.params.id).select('-password');
+      userType = 'sai_official';
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -36,7 +63,7 @@ router.get('/profile/:id', auth, async (req, res) => {
 
     // Get user's assessment statistics if viewing athlete profile
     let assessmentStats = null;
-    if (user.userType === 'athlete') {
+    if (userType === 'athlete') {
       const stats = await Assessment.aggregate([
         { $match: { athlete: user._id } },
         {
@@ -64,6 +91,7 @@ router.get('/profile/:id', auth, async (req, res) => {
       success: true,
       user: {
         ...user.toObject(),
+        userType, // Add userType to the response
         assessmentStats
       }
     });
@@ -97,7 +125,10 @@ router.put('/profile', auth, [
       });
     }
 
-    const user = await User.findById(req.user._id);
+    // Find the user in the appropriate model
+    const UserModel = getUserModel(req.user.userType);
+    const user = await UserModel.findById(req.user._id);
+    
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -105,23 +136,23 @@ router.put('/profile', auth, [
       });
     }
 
-    // Update allowed fields
-    const allowedFields = ['name', 'phone', 'city', 'state', 'specialization'];
-    allowedFields.forEach(field => {
+    // Common fields that all user types can update
+    const commonFields = ['name', 'phone', 'city', 'state', 'specialization'];
+    commonFields.forEach(field => {
       if (req.body[field] !== undefined) {
         user[field] = req.body[field];
       }
     });
 
     // Update type-specific fields
-    if (user.userType === 'athlete') {
+    if (req.user.userType === 'athlete') {
       const athleteFields = ['height', 'weight', 'bloodGroup', 'emergencyContact'];
       athleteFields.forEach(field => {
         if (req.body[field] !== undefined) {
           user[field] = req.body[field];
         }
       });
-    } else if (user.userType === 'coach') {
+    } else if (req.user.userType === 'coach') {
       const coachFields = ['experience', 'certifications'];
       coachFields.forEach(field => {
         if (req.body[field] !== undefined) {
@@ -141,7 +172,7 @@ router.put('/profile', auth, [
         id: user._id,
         name: user.name,
         email: user.email,
-        userType: user.userType,
+        userType: req.user.userType, // Use the type from the token
         phone: user.phone,
         city: user.city,
         state: user.state,

@@ -48,14 +48,30 @@ export const AuthProvider = ({ children }) => {
     // Add request interceptor to debug URLs
     axios.interceptors.request.use(
       (config) => {
-        const fullUrl = `${config.baseURL}${config.url}`;
+        let fullUrl;
+        
+        if (config.url.startsWith('http')) {
+          // If URL is already absolute, use it as-is
+          fullUrl = config.url;
+        } else if (config.baseURL) {
+          // If we have a baseURL, construct the full URL properly
+          const base = config.baseURL.endsWith('/') ? config.baseURL.slice(0, -1) : config.baseURL;
+          const path = config.url.startsWith('/') ? config.url : `/${config.url}`;
+          fullUrl = `${base}${path}`;
+        } else {
+          // No baseURL, just use the relative URL
+          fullUrl = config.url;
+        }
+        
         console.log('📤 API Request:', {
           method: config.method?.toUpperCase(),
           url: config.url,
           baseURL: config.baseURL,
           fullURL: fullUrl,
-          hasSpaces: /\s/.test(fullUrl)
+          hasSpaces: /\s/.test(fullUrl),
+          isAbsolute: config.url.startsWith('http')
         });
+        
         return config;
       },
       (error) => {
@@ -67,18 +83,41 @@ export const AuthProvider = ({ children }) => {
     // Add response interceptor to debug responses
     axios.interceptors.response.use(
       (response) => {
+        let fullUrl;
+        if (response.config.url.startsWith('http')) {
+          fullUrl = response.config.url;
+        } else if (response.config.baseURL) {
+          const base = response.config.baseURL.endsWith('/') ? response.config.baseURL.slice(0, -1) : response.config.baseURL;
+          const path = response.config.url.startsWith('/') ? response.config.url : `/${response.config.url}`;
+          fullUrl = `${base}${path}`;
+        } else {
+          fullUrl = response.config.url;
+        }
+        
         console.log('📥 API Response:', {
           url: response.config.url,
+          fullURL: fullUrl,
           status: response.status,
           success: response.data.success
         });
         return response;
       },
       (error) => {
+        let fullUrl;
+        if (error.config?.url?.startsWith('http')) {
+          fullUrl = error.config.url;
+        } else if (error.config?.baseURL) {
+          const base = error.config.baseURL.endsWith('/') ? error.config.baseURL.slice(0, -1) : error.config.baseURL;
+          const path = error.config.url?.startsWith('/') ? error.config.url : `/${error.config.url}`;
+          fullUrl = `${base}${path}`;
+        } else {
+          fullUrl = error.config?.url;
+        }
+        
         console.error('❌ Response error:', {
           url: error.config?.url,
           baseURL: error.config?.baseURL,
-          fullURL: error.config?.baseURL + error.config?.url,
+          fullURL: fullUrl,
           status: error.response?.status,
           data: error.response?.data,
           message: error.message

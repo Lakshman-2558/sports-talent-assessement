@@ -11,7 +11,7 @@ require('dotenv').config();
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
+// const userRoutes = require('./routes/users'); // deprecated and unmounted
 const assessmentRoutes = require('./routes/assessments');
 const videoRoutes = require('./routes/videos');
 const dashboardRoutes = require('./routes/dashboard');
@@ -20,6 +20,11 @@ const sportsRoutes = require('./routes/sports');
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
+
+// Import models for index management
+const Athlete = require('./models/Athlete');
+const Coach = require('./models/Coach');
+const Official = require('./models/Official');
 
 const app = express();
 
@@ -80,7 +85,7 @@ const otpLimiter = rateLimit({
 });
 
 // Exclude video streaming from rate limiting first
-app.use('/api/videos/*/stream', (req, res, next) => {
+app.use('/api/assessments/*/stream', (req, res, next) => {
   // Skip rate limiting for video streaming
   next();
 });
@@ -127,9 +132,10 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/videos', require('./routes/videos'));
-app.use('/api/users', require('./routes/users'));
+// app.use('/api/videos', require('./routes/videos'));
+// app.use('/api/users', require('./routes/users')); // removed per new role-specific profile structure
 app.use('/api/gesture-analysis', require('./routes/gestureAnalysis'));
+app.use('/api/assessments', require('./routes/assessments'));
 
 // OTP Model (simple in-memory storage for demo - use database in production)
 const otpStorage = new Map();
@@ -425,12 +431,48 @@ const connectDB = async () => {
   }
 };
 
+// Ensure critical indexes exist with correct definitions
+const ensureIndexes = async () => {
+  try {
+    // Helper to drop and recreate email index with partial filter
+    const recreateEmailIndex = async (Model, modelName) => {
+      try {
+        const indexes = await Model.collection.indexes();
+        const hasEmailIndex = indexes.some(idx => idx.name === 'email_1');
+        if (hasEmailIndex) {
+          await Model.collection.dropIndex('email_1');
+          logger.info(`[Indexes] Dropped existing email index for ${modelName}`);
+        }
+      } catch (e) {
+        // If index doesn't exist, ignore
+        if (e.codeName !== 'IndexNotFound') {
+          logger.warn(`[Indexes] Warning checking/dropping index for ${modelName}:`, e);
+        }
+      }
+
+      await Model.collection.createIndex(
+        { email: 1 },
+        { unique: true, partialFilterExpression: { email: { $type: 'string' } } }
+      );
+      logger.info(`[Indexes] Ensured partial unique email index for ${modelName}`);
+    };
+
+    await recreateEmailIndex(Athlete, 'Athlete');
+    await recreateEmailIndex(Coach, 'Coach');
+    await recreateEmailIndex(Official, 'Official');
+
+  } catch (err) {
+    logger.error('[Indexes] Failed to ensure indexes:', err);
+  }
+};
+
 // Start server
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
     await connectDB();
+    await ensureIndexes();
     
     const server = app.listen(PORT, () => {
       console.log('\n🚀 SERVER STARTED SUCCESSFULLY!');

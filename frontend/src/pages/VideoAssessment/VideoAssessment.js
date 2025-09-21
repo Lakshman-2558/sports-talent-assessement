@@ -1,8 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './VideoAssessment.css';
 
 const VideoAssessment = () => {
@@ -19,6 +21,43 @@ const VideoAssessment = () => {
   const [uploading, setUploading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [showInstructions, setShowInstructions] = useState(true);
+  const [userLocation, setUserLocation] = useState({
+    latitude: null,
+    longitude: null,
+    error: null
+  });
+
+  // Get user's current location when component mounts
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            error: null
+          });
+        },
+        (error) => {
+          setUserLocation(prev => ({
+            ...prev,
+            error: 'Unable to retrieve your location. Please enable location services.'
+          }));
+          console.error('Geolocation error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      setUserLocation(prev => ({
+        ...prev,
+        error: 'Geolocation is not supported by your browser.'
+      }));
+    }
+  }, []);
 
   const fitnessTests = {
     vertical_jump: {
@@ -94,41 +133,69 @@ const VideoAssessment = () => {
         return prev - 1;
       });
     }, 1000);
-  }, [webcamRef, setCapturing, mediaRecorderRef]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startRecording = () => {
-    setCapturing(true);
-    setRecordedChunks([]);
-    
-    mediaRecorderRef.current = new MediaRecorder(webcamRef.current.stream, {
-      mimeType: "video/webm"
-    });
-    
-    mediaRecorderRef.current.addEventListener(
-      "dataavailable",
-      handleDataAvailable
-    );
-    
-    mediaRecorderRef.current.start();
-
-    // Start recording timer
-    const startTime = Date.now();
-    const timerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      setRecordingTime(elapsed);
+    try {
+      setCapturing(true);
+      setRecordedChunks([]);
       
-      if (elapsed >= currentTest.duration) {
-        handleStopCaptureClick();
-        clearInterval(timerInterval);
+      // Set video recording options with fallbacks - prioritize MP4 format
+      const options = {
+        mimeType: 'video/mp4', // Prefer MP4 first (backend compatible)
+        videoBitsPerSecond: 1000000 // 1Mbps for reasonable quality/size
+      };
+      
+      // Fallback to supported codecs if MP4 is not supported
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm;codecs=h264'; // H264 in WebM container
       }
-    }, 1000);
+      
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm;codecs=vp9'; // VP9 in WebM
+      }
+
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm'; // Regular WebM as last resort
+      }
+
+      console.log('Starting recording with options:', options);
+      
+      mediaRecorderRef.current = new MediaRecorder(webcamRef.current.stream, options);
+      
+      mediaRecorderRef.current.addEventListener(
+        "dataavailable",
+        handleDataAvailable
+      );
+      
+      mediaRecorderRef.current.start(1000); // Request data every second
+
+      // Start recording timer
+      const startTime = Date.now();
+      const timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        setRecordingTime(elapsed);
+        
+        if (elapsed >= currentTest.duration) {
+          handleStopCaptureClick();
+          clearInterval(timerInterval);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Failed to start recording. Please try again.');
+      setCapturing(false);
+    }
   };
 
   const handleStopCaptureClick = useCallback(() => {
-    mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
     setCapturing(false);
     setRecordingTime(0);
-  }, [mediaRecorderRef, webcamRef, setCapturing]);
+  }, []);
 
   const handleDownload = useCallback(() => {
     if (recordedChunks.length) {
@@ -148,64 +215,117 @@ const VideoAssessment = () => {
   }, [recordedChunks, selectedTest]);
 
   const handleUploadAndAnalyze = async () => {
-    if (!recordedChunks.length) return;
+    if (!recordedChunks.length) {
+      toast.error('No recording available to upload');
+      return;
+    }
 
     setUploading(true);
     
     try {
-      const blob = new Blob(recordedChunks, { type: "video/webm" });
-      const formData = new FormData();
-      formData.append('video', blob, `${selectedTest}_${Date.now()}.webm`);
-      formData.append('title', `${currentTest.name} - Assessment`);
-      formData.append('description', `${currentTest.name} assessment video for performance analysis`);
-      formData.append('sport', 'fitness');
-      formData.append('category', 'assessment');
-      formData.append('videoType', 'assignment_submission');
-      formData.append('skillLevel', 'beginner');
-      formData.append('visibility', 'coaches_only');
+      // Convert recorded chunks to a blob - use MP4 format for backend compatibility
+      const blob = new Blob(recordedChunks, { 
+        type: 'video/mp4' // Use MP4 type for upload (backend compatible)
+      });
       
-      // Use user's actual location or default coordinates if not available
-      formData.append('latitude', user.latitude || '28.6139'); // Default to Delhi coordinates
-      formData.append('longitude', user.longitude || '77.2090');
-      formData.append('city', user.city || 'Unknown');
-      formData.append('state', user.state || 'Unknown');
-      formData.append('tags', `${selectedTest},assessment,fitness`);
+      // Log blob info for debugging
+      console.log('Created video blob:', {
+        size: blob.size,
+        type: blob.type,
+        chunks: recordedChunks.length
+      });
 
-      // Upload video first
-      const uploadResponse = await axios.post(
-        `${process.env.REACT_APP_API_URL}/videos/upload`,
+      // Check if we have location data
+      if (userLocation.error) {
+        throw new Error(userLocation.error);
+      }
+
+      if (!userLocation.latitude || !userLocation.longitude) {
+        throw new Error('Getting your location... Please wait a moment and try again.');
+      }
+
+      // Log location data for debugging
+      console.log('Using location data:', {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        city: user?.city,
+        state: user?.state
+      });
+
+      const formData = new FormData();
+      const fileName = `${selectedTest}_${Date.now()}.mp4`;
+      formData.append('video', blob, fileName);
+      formData.append('assessmentType', selectedTest); // Changed from testType to assessmentType
+      
+      // Add location data - required by backend
+      formData.append('latitude', userLocation.latitude);
+      formData.append('longitude', userLocation.longitude);
+      
+      // Optional fields
+      if (user?.city) formData.append('city', user.city);
+      if (user?.state) formData.append('state', user.state);
+
+      console.log('Starting upload...', {
+        endpoint: '/assessments/upload',
+        assessmentType: selectedTest,
+        fileName,
+        size: blob.size,
+        location: {
+          latitude: user.latitude,
+          longitude: user.longitude
+        }
+      });
+
+      const response = await axios.post(
+        '/assessments/upload',
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          timeout: 300000 // 5 minute timeout for large uploads
         }
       );
 
-      if (uploadResponse.data.success) {
-        // Then analyze the video
-        const analysisResponse = await axios.post(
-          `${process.env.REACT_APP_API_URL}/videos/analyze`,
-          {
-            videoUrl: uploadResponse.data.video.videoUrl,
-            testType: selectedTest
-          }
-        );
-
+      console.log('Upload successful:', response.data);
+      
+      if (response.data.success) {
         setAnalysisResult({
-          ...analysisResponse.data.analysis,
-          videoId: uploadResponse.data.video._id
+          ...response.data.assessment.aiAnalysis,
+          assessmentId: response.data.assessment._id
         });
         
-        // Navigate to dashboard after successful upload
+        toast.success('Assessment submitted successfully!');
+        
         setTimeout(() => {
           navigate('/athlete-dashboard');
         }, 3000);
       }
 
     } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload video. Please try again.');
+      console.error('Upload error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config,
+        stack: error.stack
+      });
+      
+      let errorMessage = 'Failed to submit assessment';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message.includes('Network Error')) {
+        errorMessage = 'Cannot connect to the server. Please check your connection.';
+      } else if (error.response?.status === 413) {
+        errorMessage = 'Video file is too large. Please record a shorter video.';
+      } else if (error.response?.status === 400) {
+        errorMessage = 'Invalid video format. Please try recording again.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Upload timed out. Please try again with a shorter video.';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -216,6 +336,18 @@ const VideoAssessment = () => {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Show loading state while getting location
+  if (!userLocation.latitude || !userLocation.longitude) {
+    return (
+      <div className="video-assessment">
+        <div className="loading-message">
+          <h2>Getting your location...</h2>
+          <p>Please allow location access to continue with the assessment.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

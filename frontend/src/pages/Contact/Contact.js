@@ -27,7 +27,7 @@ const Contact = () => {
     setError('');
 
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/contact`, formData);
+      await axios.post('/contact', formData);
       setSuccess(true);
       setFormData({
         name: '',

@@ -3,7 +3,6 @@ const { body, validationResult } = require('express-validator');
 const { auth, authorize } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const Video = require('../models/Video');
-const User = require('../models/User');
 // Try Cloudinary first, fallback to local storage if it fails
 let videoUtils;
 try {
@@ -19,7 +18,15 @@ const router = express.Router();
 // @route   POST /api/videos/upload
 // @desc    Upload video file with location and metadata
 // @access  Private
-router.post('/upload', auth, uploadVideo.single('video'), [
+router.post('/upload', auth, (req, res, next) => {
+  console.log('🔍 DEBUG - User info in video upload:', {
+    userId: req.user?.id,
+    userType: req.user?.userType,
+    email: req.user?.email,
+    fullUser: JSON.stringify(req.user, null, 2)
+  });
+  next();
+}, uploadVideo.single('video'), [
   body('title').notEmpty().withMessage('Video title is required'),
   body('sport').notEmpty().withMessage('Sport type is required'),
   body('latitude').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude is required'),
@@ -69,6 +76,7 @@ router.post('/upload', auth, uploadVideo.single('video'), [
       videoUrl,
       thumbnailUrl,
       uploadedBy: req.user.id,
+      uploaderType: req.user.userType,
       videoPublicId, // Store Cloudinary public ID for deletion
       duration,
       fileSize: req.file.size,
@@ -91,7 +99,7 @@ router.post('/upload', auth, uploadVideo.single('video'), [
     });
 
     await video.save();
-    await video.populate('uploadedBy', 'name userType specialization');
+    await video.populateUploader();
 
     logger.info(`Video uploaded: ${title} by user ${req.user.email}`);
 
@@ -373,6 +381,12 @@ function generateRawMeasurements(testType) {
 // @access  Private
 router.get('/nearby', auth, async (req, res) => {
   try {
+    console.log('🔍 NEARBY-VIDEOS DEBUG - Request:', {
+      userId: req.user.id,
+      userType: req.user.userType,
+      query: req.query
+    });
+
     const { latitude, longitude, radius = 50, sport, category } = req.query;
 
     if (!latitude || !longitude) {
@@ -385,20 +399,38 @@ router.get('/nearby', auth, async (req, res) => {
     const filters = {};
     if (sport) filters.sport = sport;
     if (category) filters.category = category;
+    
+    // For coaches, also show assignment submissions (assessment videos)
+    if (req.user.userType === 'coach' && category === 'assessment') {
+      filters.$or = [
+        { category: 'assessment' },
+        { videoType: 'assignment_submission' }
+      ];
+      delete filters.category; // Remove the direct category filter since we're using $or
+    }
 
     // Determine what videos user can see based on their role
     let videos;
     if (req.user.userType === 'coach') {
-      videos = await Video.findForCoaches(
+      videos = await Video.findNearby(
         parseFloat(longitude),
         parseFloat(latitude),
-        parseFloat(radius)
+        parseFloat(radius),
+        {
+          visibility: { $in: ['public', 'coaches_only'] },
+          'uploadedBy': { $exists: true },
+          ...filters
+        }
       ).sort({ createdAt: -1 });
     } else if (req.user.userType === 'sai_official') {
-      videos = await Video.findForSAIOfficials(
+      videos = await Video.findNearby(
         parseFloat(longitude),
         parseFloat(latitude),
-        parseFloat(radius)
+        parseFloat(radius),
+        {
+          visibility: { $in: ['public', 'coaches_only', 'sai_officials_only'] },
+          ...filters
+        }
       ).sort({ createdAt: -1 });
     } else {
       // Athletes can only see their own videos and public ones
@@ -414,6 +446,11 @@ router.get('/nearby', auth, async (req, res) => {
           ...filters
         }
       ).sort({ createdAt: -1 });
+    }
+
+    // Populate each video with the correct uploader model
+    for (let video of videos) {
+      await video.populateUploader();
     }
 
     res.json({
@@ -436,9 +473,25 @@ router.get('/nearby', auth, async (req, res) => {
 // @access  Private
 router.get('/my-videos', auth, async (req, res) => {
   try {
+    console.log(' MY-VIDEOS DEBUG - User requesting:', {
+      userId: req.user.id,
+      userType: req.user.userType,
+      email: req.user.email
+    });
+
     const videos = await Video.find({ uploadedBy: req.user.id })
-      .populate('uploadedBy', 'name userType specialization')
       .sort({ createdAt: -1 });
+
+    console.log(' MY-VIDEOS DEBUG - Found videos:', {
+      count: videos.length,
+      videoIds: videos.map(v => v._id),
+      videoTitles: videos.map(v => v.title)
+    });
+
+    // Populate each video with the correct uploader model
+    for (let video of videos) {
+      await video.populateUploader();
+    }
 
     res.json({
       success: true,
@@ -450,7 +503,7 @@ router.get('/my-videos', auth, async (req, res) => {
     logger.error('My videos fetch error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error fetching user videos'
+      message: 'Server error fetching videos'
     });
   }
 });
@@ -520,7 +573,6 @@ router.post('/:id/comment', auth, [
 
     video.addComment(req.user.id, req.body.comment);
     await video.save();
-    await video.populate('comments.user', 'name userType');
 
     res.json({
       success: true,
@@ -578,7 +630,12 @@ router.put('/:id/verify', auth, authorize(['coach']), [
     video.verificationNotes = verificationNotes;
 
     await video.save();
-    await video.populate(['uploadedBy', 'verifiedBy'], 'name userType specialization');
+    await video.populateUploader();
+    await video.populate({ 
+      path: 'verifiedBy', 
+      model: 'Coach',
+      select: 'name specialization coachingLevel' 
+    });
 
     logger.info(`Video ${verificationStatus} by coach ${req.user.email}: ${video.title}`);
 
@@ -629,7 +686,12 @@ router.put('/:id/moderate', auth, authorize(['sai_official']), [
     video.moderationNotes = moderationNotes;
 
     await video.save();
-    await video.populate(['uploadedBy', 'moderatedBy'], 'name userType');
+    await video.populateUploader();
+    await video.populate({ 
+      path: 'moderatedBy', 
+      model: 'Official',
+      select: 'name accessLevel department' 
+    });
 
     logger.info(`Video ${status} by ${req.user.email}: ${video.title}`);
 

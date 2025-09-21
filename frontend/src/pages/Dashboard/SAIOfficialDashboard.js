@@ -6,8 +6,8 @@ import './Dashboard.css';
 const SAIOfficialDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const [videos, setVideos] = useState([]);
-  // const [stats, setStats] = useState({});
+  const [assessments, setAssessments] = useState([]);
+  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const [filters, setFilters] = useState({
@@ -16,14 +16,23 @@ const SAIOfficialDashboard = () => {
     status: '',
     radius: 100
   });
-  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [selectedAssessment, setSelectedAssessment] = useState(null);
   const [moderationModal, setModerationModal] = useState(false);
   const [moderationData, setModerationData] = useState({
     status: '',
     notes: ''
   });
 
-  const fetchNearbyVideos = useCallback(async () => {
+  // Create axios instance with base URL to avoid double API path
+  const api = axios.create({
+    baseURL: 'http://localhost:5000/api',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    }
+  });
+
+  const fetchNearbyAssessments = useCallback(async () => {
     if (!userLocation) return;
     
     try {
@@ -37,10 +46,10 @@ const SAIOfficialDashboard = () => {
       if (filters.category) params.category = filters.category;
       if (filters.status) params.status = filters.status;
 
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/videos/nearby`, { params });
-      setVideos(response.data.videos || []);
+      const response = await api.get('/assessments/nearby', { params });
+      setAssessments(response.data.assessments || []);
     } catch (error) {
-      console.error('Error fetching nearby videos:', error);
+      console.error('Error fetching nearby assessments:', error);
     }
   }, [userLocation, filters.radius, filters.sport, filters.category, filters.status]);
 
@@ -53,9 +62,9 @@ const SAIOfficialDashboard = () => {
 
   useEffect(() => {
     if (userLocation) {
-      fetchNearbyVideos();
+      fetchNearbyAssessments();
     }
-  }, [userLocation, fetchNearbyVideos]);
+  }, [userLocation, fetchNearbyAssessments]);
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -77,9 +86,9 @@ const SAIOfficialDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // Fetch dashboard stats if needed
-      // const statsRes = await axios.get(`${process.env.REACT_APP_API_URL}/dashboard/stats`);
-      // setStats(statsRes.data.stats || {});
+      // Fetch dashboard stats
+      const statsRes = await api.get('/dashboard/stats');
+      setStats(statsRes.data.stats || {});
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -87,22 +96,21 @@ const SAIOfficialDashboard = () => {
     }
   };
 
-
-  const handleModerateVideo = async (videoId, status, notes) => {
+  const handleModerateAssessment = async (assessmentId, status, notes) => {
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/videos/${videoId}/moderate`, {
+      await api.put(`/assessments/${assessmentId}/moderate`, {
         status,
         moderationNotes: notes
       });
       
       setModerationModal(false);
-      setSelectedVideo(null);
+      setSelectedAssessment(null);
       setModerationData({ status: '', notes: '' });
-      fetchNearbyVideos(); // Refresh videos
-      alert(`Video ${status} successfully!`);
+      fetchNearbyAssessments(); // Refresh assessments
+      alert(`Assessment ${status} successfully!`);
     } catch (error) {
-      console.error('Error moderating video:', error);
-      alert('Error moderating video. Please try again.');
+      console.error('Error moderating assessment:', error);
+      alert('Error moderating assessment. Please try again.');
     }
   };
 
@@ -119,8 +127,8 @@ const SAIOfficialDashboard = () => {
             <i className="fas fa-video"></i>
           </div>
           <div className="stat-info">
-            <h3>{videos.length}</h3>
-            <p>Total Videos</p>
+            <h3>{stats.totalAssessments || assessments.length}</h3>
+            <p>Total Assessments</p>
           </div>
         </div>
         <div className="stat-card">
@@ -128,7 +136,7 @@ const SAIOfficialDashboard = () => {
             <i className="fas fa-clock"></i>
           </div>
           <div className="stat-info">
-            <h3>{videos.filter(v => v.status === 'pending').length}</h3>
+            <h3>{stats.pendingReviews || assessments.filter(v => v.status === 'pending').length}</h3>
             <p>Pending Review</p>
           </div>
         </div>
@@ -137,7 +145,7 @@ const SAIOfficialDashboard = () => {
             <i className="fas fa-check-circle"></i>
           </div>
           <div className="stat-info">
-            <h3>{videos.filter(v => v.status === 'approved').length}</h3>
+            <h3>{stats.approved || assessments.filter(v => v.status === 'approved').length}</h3>
             <p>Approved</p>
           </div>
         </div>
@@ -146,7 +154,7 @@ const SAIOfficialDashboard = () => {
             <i className="fas fa-users"></i>
           </div>
           <div className="stat-info">
-            <h3>{new Set(videos.map(v => v.uploadedBy?._id)).size}</h3>
+            <h3>{stats.activeAthletes || new Set(assessments.map(v => v.athlete?._id)).size}</h3>
             <p>Active Athletes</p>
           </div>
         </div>
@@ -154,11 +162,11 @@ const SAIOfficialDashboard = () => {
 
       <div className="recent-activity">
         <h3>Recent Submissions</h3>
-        {videos.filter(v => v.status === 'pending').slice(0, 5).map(video => (
-          <div key={video._id} className="activity-item">
+        {assessments.filter(v => v.status === 'pending').slice(0, 5).map(assessment => (
+          <div key={assessment._id} className="activity-item">
             <div className="activity-thumbnail">
-              {video.thumbnailUrl ? (
-                <img src={video.thumbnailUrl} alt="Video thumbnail" />
+              {assessment.thumbnailUrl ? (
+                <img src={assessment.thumbnailUrl} alt="Assessment thumbnail" />
               ) : (
                 <div className="thumbnail-placeholder">
                   <i className="fas fa-play"></i>
@@ -166,9 +174,9 @@ const SAIOfficialDashboard = () => {
               )}
             </div>
             <div className="activity-info">
-              <h4>{video.title}</h4>
-              <p>by {video.uploadedBy?.name} • {video.sport}</p>
-              <small>{video.location?.city}, {video.location?.state}</small>
+              <h4>{assessment.title}</h4>
+              <p>by {assessment.athlete?.name} • {assessment.sport}</p>
+              <small>{assessment.location?.city}, {assessment.location?.state}</small>
             </div>
             <div className="activity-status">
               <span className="status-badge pending">Pending Review</span>
@@ -179,10 +187,10 @@ const SAIOfficialDashboard = () => {
     </div>
   );
 
-  const renderVideoModeration = () => (
+  const renderAssessmentModeration = () => (
     <div className="moderation-content">
       <div className="moderation-header">
-        <h2>Video Moderation</h2>
+        <h2>Assessment Moderation</h2>
         <div className="filters">
           <select
             value={filters.status}
@@ -219,62 +227,62 @@ const SAIOfficialDashboard = () => {
         </div>
       </div>
 
-      <div className="videos-grid moderation-grid">
-        {videos.map(video => (
-          <div key={video._id} className="video-card moderation-card">
-            <div className="video-thumbnail">
-              {video.thumbnailUrl ? (
-                <img src={video.thumbnailUrl} alt="Video thumbnail" />
+      <div className="assessments-grid moderation-grid">
+        {assessments.map(assessment => (
+          <div key={assessment._id} className="assessment-card moderation-card">
+            <div className="assessment-thumbnail">
+              {assessment.thumbnailUrl ? (
+                <img src={assessment.thumbnailUrl} alt="Assessment thumbnail" />
               ) : (
                 <div className="thumbnail-placeholder">
                   <i className="fas fa-play"></i>
                 </div>
               )}
-              <div className="video-duration">
-                {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+              <div className="assessment-duration">
+                {Math.floor(assessment.duration / 60)}:{(assessment.duration % 60).toString().padStart(2, '0')}
               </div>
             </div>
-            <div className="video-details">
+            <div className="assessment-details">
               <div className="athlete-info">
                 <div className="athlete-avatar">
-                  {video.uploadedBy?.name?.charAt(0).toUpperCase()}
+                  {assessment.athlete?.name?.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h4>{video.uploadedBy?.name}</h4>
-                  <p className="athlete-type">{video.uploadedBy?.userType}</p>
+                  <h4>{assessment.athlete?.name}</h4>
+                  <p className="athlete-type">{assessment.athlete?.userType}</p>
                 </div>
               </div>
-              <h3 className="video-title">{video.title}</h3>
-              <p className="video-meta">{video.sport} • {video.category} • {video.skillLevel}</p>
-              <p className="video-location">
+              <h3 className="assessment-title">{assessment.title}</h3>
+              <p className="assessment-meta">{assessment.sport} • {assessment.category} • {assessment.skillLevel}</p>
+              <p className="assessment-location">
                 <i className="fas fa-map-marker-alt"></i>
-                {video.location?.city}, {video.location?.state}
+                {assessment.location?.city}, {assessment.location?.state}
               </p>
-              {video.description && (
-                <p className="video-description">{video.description}</p>
+              {assessment.description && (
+                <p className="assessment-description">{assessment.description}</p>
               )}
               
-              <div className="video-stats">
-                <span><i className="fas fa-eye"></i> {video.views || 0}</span>
-                <span><i className="fas fa-heart"></i> {video.likeCount || 0}</span>
-                <span><i className="fas fa-comment"></i> {video.commentCount || 0}</span>
+              <div className="assessment-stats">
+                <span><i className="fas fa-eye"></i> {assessment.views || 0}</span>
+                <span><i className="fas fa-heart"></i> {assessment.likeCount || 0}</span>
+                <span><i className="fas fa-comment"></i> {assessment.commentCount || 0}</span>
               </div>
 
               <div className="moderation-info">
                 <div className="current-status">
-                  <span className={`status-badge ${video.status}`}>
-                    {video.status}
+                  <span className={`status-badge ${assessment.status}`}>
+                    {assessment.status}
                   </span>
-                  <small>Uploaded: {new Date(video.createdAt).toLocaleDateString()}</small>
+                  <small>Uploaded: {new Date(assessment.createdAt).toLocaleDateString()}</small>
                 </div>
                 
-                {video.moderatedBy && (
+                {assessment.moderatedBy && (
                   <div className="moderation-history">
                     <small>
-                      Moderated by: {video.moderatedBy.name} on {new Date(video.moderatedAt).toLocaleDateString()}
+                      Moderated by: {assessment.moderatedBy.name} on {new Date(assessment.moderatedAt).toLocaleDateString()}
                     </small>
-                    {video.moderationNotes && (
-                      <p className="moderation-notes">{video.moderationNotes}</p>
+                    {assessment.moderationNotes && (
+                      <p className="moderation-notes">{assessment.moderationNotes}</p>
                     )}
                   </div>
                 )}
@@ -284,11 +292,11 @@ const SAIOfficialDashboard = () => {
                 <button 
                   className="action-btn approve-btn"
                   onClick={() => {
-                    setSelectedVideo(video);
+                    setSelectedAssessment(assessment);
                     setModerationData({ status: 'approved', notes: '' });
                     setModerationModal(true);
                   }}
-                  disabled={video.status === 'approved'}
+                  disabled={assessment.status === 'approved'}
                 >
                   <i className="fas fa-check"></i>
                   Approve
@@ -296,11 +304,11 @@ const SAIOfficialDashboard = () => {
                 <button 
                   className="action-btn reject-btn"
                   onClick={() => {
-                    setSelectedVideo(video);
+                    setSelectedAssessment(assessment);
                     setModerationData({ status: 'rejected', notes: '' });
                     setModerationModal(true);
                   }}
-                  disabled={video.status === 'rejected'}
+                  disabled={assessment.status === 'rejected'}
                 >
                   <i className="fas fa-times"></i>
                   Reject
@@ -308,7 +316,7 @@ const SAIOfficialDashboard = () => {
                 <button 
                   className="action-btn flag-btn"
                   onClick={() => {
-                    setSelectedVideo(video);
+                    setSelectedAssessment(assessment);
                     setModerationData({ status: 'flagged', notes: '' });
                     setModerationModal(true);
                   }}
@@ -318,9 +326,9 @@ const SAIOfficialDashboard = () => {
                 </button>
               </div>
 
-              {video.tags && video.tags.length > 0 && (
-                <div className="video-tags">
-                  {video.tags.map((tag, index) => (
+              {assessment.tags && assessment.tags.length > 0 && (
+                <div className="assessment-tags">
+                  {assessment.tags.map((tag, index) => (
                     <span key={index} className="tag">{tag}</span>
                   ))}
                 </div>
@@ -347,21 +355,21 @@ const SAIOfficialDashboard = () => {
         <div className="analytics-card">
           <h3>Monthly Submissions</h3>
           <div className="chart-placeholder">
-            <p>Monthly video submission trends</p>
+            <p>Monthly assessment submission trends</p>
           </div>
         </div>
         
         <div className="analytics-card">
           <h3>Top Performing Athletes</h3>
           <div className="leaderboard">
-            {videos
+            {assessments
               .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0))
               .slice(0, 5)
-              .map((video, index) => (
-                <div key={video._id} className="leaderboard-item">
+              .map((assessment, index) => (
+                <div key={assessment._id} className="leaderboard-item">
                   <span className="rank">#{index + 1}</span>
-                  <span className="name">{video.uploadedBy?.name}</span>
-                  <span className="score">{video.likeCount || 0} likes</span>
+                  <span className="name">{assessment.athlete?.name}</span>
+                  <span className="score">{assessment.likeCount || 0} likes</span>
                 </div>
               ))}
           </div>
@@ -372,11 +380,11 @@ const SAIOfficialDashboard = () => {
           <div className="coverage-stats">
             <div className="coverage-item">
               <label>Cities Covered</label>
-              <span>{new Set(videos.map(v => v.location?.city)).size}</span>
+              <span>{new Set(assessments.map(v => v.location?.city)).size}</span>
             </div>
             <div className="coverage-item">
               <label>States Covered</label>
-              <span>{new Set(videos.map(v => v.location?.state)).size}</span>
+              <span>{new Set(assessments.map(v => v.location?.state)).size}</span>
             </div>
             <div className="coverage-item">
               <label>Average Distance</label>
@@ -443,16 +451,16 @@ const SAIOfficialDashboard = () => {
           <h3>Moderation Statistics</h3>
           <div className="moderation-stats">
             <div className="stat-item">
-              <label>Videos Reviewed</label>
-              <span>{videos.filter(v => v.moderatedBy?._id === user?.id).length}</span>
+              <label>Assessments Reviewed</label>
+              <span>{assessments.filter(v => v.moderatedBy?._id === user?.id).length}</span>
             </div>
             <div className="stat-item">
               <label>Approved</label>
-              <span>{videos.filter(v => v.moderatedBy?._id === user?.id && v.status === 'approved').length}</span>
+              <span>{assessments.filter(v => v.moderatedBy?._id === user?.id && v.status === 'approved').length}</span>
             </div>
             <div className="stat-item">
               <label>Rejected</label>
-              <span>{videos.filter(v => v.moderatedBy?._id === user?.id && v.status === 'rejected').length}</span>
+              <span>{assessments.filter(v => v.moderatedBy?._id === user?.id && v.status === 'rejected').length}</span>
             </div>
           </div>
         </div>
@@ -497,7 +505,7 @@ const SAIOfficialDashboard = () => {
                   onClick={() => setActiveTab('moderation')}
                 >
                   <i className="fas fa-shield-alt"></i>
-                  Video Moderation
+                  Assessment Moderation
                 </button>
               </li>
               <li>
@@ -523,7 +531,7 @@ const SAIOfficialDashboard = () => {
 
           <main className="dashboard-content">
             {activeTab === 'overview' && renderOverview()}
-            {activeTab === 'moderation' && renderVideoModeration()}
+            {activeTab === 'moderation' && renderAssessmentModeration()}
             {activeTab === 'analytics' && renderAnalytics()}
             {activeTab === 'profile' && renderProfile()}
           </main>
@@ -531,11 +539,11 @@ const SAIOfficialDashboard = () => {
       </div>
 
       {/* Moderation Modal */}
-      {moderationModal && selectedVideo && (
+      {moderationModal && selectedAssessment && (
         <div className="modal-overlay">
           <div className="modal moderation-modal">
             <div className="modal-header">
-              <h3>Moderate Video</h3>
+              <h3>Moderate Assessment</h3>
               <button 
                 className="close-btn"
                 onClick={() => setModerationModal(false)}
@@ -544,10 +552,10 @@ const SAIOfficialDashboard = () => {
               </button>
             </div>
             <div className="modal-body">
-              <div className="video-info">
-                <h4>{selectedVideo.title}</h4>
-                <p>by {selectedVideo.uploadedBy?.name}</p>
-                <p>{selectedVideo.sport} • {selectedVideo.category}</p>
+              <div className="assessment-info">
+                <h4>{selectedAssessment.title}</h4>
+                <p>by {selectedAssessment.athlete?.name}</p>
+                <p>{selectedAssessment.sport} • {selectedAssessment.category}</p>
               </div>
               
               <div className="moderation-form">
@@ -584,7 +592,7 @@ const SAIOfficialDashboard = () => {
                 </button>
                 <button 
                   className="btn btn-primary"
-                  onClick={() => handleModerateVideo(selectedVideo._id, moderationData.status, moderationData.notes)}
+                  onClick={() => handleModerateAssessment(selectedAssessment._id, moderationData.status, moderationData.notes)}
                   disabled={!moderationData.status}
                 >
                   Confirm Action

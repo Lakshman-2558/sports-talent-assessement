@@ -14,8 +14,12 @@ const videoSchema = new mongoose.Schema({
   },
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
     required: [true, 'Uploader information is required']
+  },
+  uploaderType: {
+    type: String,
+    enum: ['athlete', 'coach', 'sai_official'],
+    required: [true, 'Uploader type is required']
   },
   videoUrl: {
     type: String,
@@ -108,8 +112,7 @@ const videoSchema = new mongoose.Schema({
   },
   likes: [{
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      type: mongoose.Schema.Types.ObjectId
     },
     likedAt: {
       type: Date,
@@ -119,7 +122,6 @@ const videoSchema = new mongoose.Schema({
   comments: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
       required: true
     },
     comment: {
@@ -169,7 +171,7 @@ const videoSchema = new mongoose.Schema({
   },
   moderatedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'Official'
   },
   moderatedAt: Date,
   moderationNotes: String,
@@ -181,7 +183,7 @@ const videoSchema = new mongoose.Schema({
   },
   verifiedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'Coach'
   },
   verifiedAt: Date,
   verificationNotes: String,
@@ -239,6 +241,24 @@ videoSchema.methods.addComment = function(userId, commentText) {
   });
 };
 
+// Method to populate uploadedBy based on uploaderType
+videoSchema.methods.populateUploader = function() {
+  const modelMap = {
+    'athlete': 'Athlete',
+    'coach': 'Coach', 
+    'sai_official': 'Official'
+  };
+  
+  const modelName = modelMap[this.uploaderType];
+  if (!modelName) return this;
+  
+  return this.populate({
+    path: 'uploadedBy',
+    model: modelName,
+    select: 'name email city state sport specialization coachingLevel accessLevel department'
+  });
+};
+
 // Static method to find videos within radius
 videoSchema.statics.findNearby = function(longitude, latitude, radiusInKm, filters = {}) {
   const query = {
@@ -255,7 +275,7 @@ videoSchema.statics.findNearby = function(longitude, latitude, radiusInKm, filte
     ...filters
   };
   
-  return this.find(query).populate('uploadedBy', 'name userType specialization city state');
+  return this.find(query);
 };
 
 // Static method to find videos for coaches (nearby athletes)
@@ -263,14 +283,14 @@ videoSchema.statics.findForCoaches = function(longitude, latitude, radiusInKm = 
   return this.findNearby(longitude, latitude, radiusInKm, {
     visibility: { $in: ['public', 'coaches_only'] },
     'uploadedBy': { $exists: true }
-  }).populate('uploadedBy', 'name userType specialization city state');
+  });
 };
 
 // Static method to find videos for SAI officials
 videoSchema.statics.findForSAIOfficials = function(longitude, latitude, radiusInKm = 100) {
   return this.findNearby(longitude, latitude, radiusInKm, {
     visibility: { $in: ['public', 'coaches_only', 'sai_officials_only'] }
-  }).populate('uploadedBy', 'name userType specialization city state');
+  });
 };
 
 // Ensure virtual fields are serialized
